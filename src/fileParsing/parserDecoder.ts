@@ -1,4 +1,6 @@
-enum ASCII {
+import type { BencodeVal, BencodeDict } from "../types/parserTypes";
+
+export enum ASCII {
   ZERO = 0x30,
   NINE = 0x39,
   COLON = 0x3a,
@@ -10,12 +12,7 @@ enum ASCII {
   HP = 0x2d,
 }
 
-type BencodeVal = number | string | BencodeVal[] | BencodeDict | Uint8Array;
-type BencodeDict = {
-  [key: string]: BencodeVal;
-};
-
-export class BitParser {
+export class ByteParser {
   private decoder = new TextDecoder();
   private pos = 0;
   constructor(private buf: Uint8Array) {}
