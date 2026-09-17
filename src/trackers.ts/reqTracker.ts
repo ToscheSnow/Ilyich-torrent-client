@@ -1,27 +1,9 @@
-import { getHash } from "./src/info_hash/info_hash";
-import { ByteParser } from "./src/fileParsing/parserDecoder";
-import { readFileSync, writeFileSync } from "fs";
-import { toJsonSafe } from "./src/utils/jsonHelper"
+import { getHash } from "./info_hash";
+import { ByteParser } from "../fileParsing/parserDecoder";
+import { writeFileSync } from "fs";
+import { toJsonSafe } from "../utils/jsonHelper";
 
-const urls = [
-  ["http://tracker.openbittorrent.com:80/announce"],
-  ["http://tracker.opentrackr.org:1337/announce"],
-  ["https://tracker1.520.jp:443/announce"],
-  ["https://tracker.tamersunion.org:443/announce"],
-  ["https://tracker.imgoingto.icu:443/announce"],
-  ["http://nyaa.tracker.wf:7777/announce"],
-];
-
-const totalBytes = "77610866994";
-
-const CLIENT_ID = Buffer.from(
-  "69206C6F766520736E6F7762756E6E6965732121",
-  "hex",
-);
-
-const infoHash = getHash();
-
-function trackerURL(path: string, infoHash: Uint8Array) {
+export function trackerURL(path: string, infoHash: Uint8Array) {
   const url = new URL(path);
   function encodeBytes(bytes: Uint8Array): string {
     return [...bytes]
@@ -58,6 +40,26 @@ export function parseCompactPeers(peers: Uint8Array) {
 
   return result;
 }
+
+const urls = [
+  ["http://tracker.openbittorrent.com:80/announce"],
+  ["http://tracker.opentrackr.org:1337/announce"],
+  ["https://tracker1.520.jp:443/announce"],
+  ["https://tracker.tamersunion.org:443/announce"],
+  ["https://tracker.imgoingto.icu:443/announce"],
+  ["http://nyaa.tracker.wf:7777/announce"],
+];
+
+//hardcoded size
+const totalBytes = "77610866994";
+
+const CLIENT_ID = Buffer.from(
+  "69206C6F766520736E6F7762756E6E6965732121",
+  "hex",
+);
+
+//get info hash for communicating
+const infoHash = getHash();
 
 const finalUrl = trackerURL(urls[0]![0]!, infoHash);
 

@@ -3,6 +3,7 @@ import { ByteParser } from "../fileParsing/parserDecoder";
 import { createHash } from "crypto";
 import { ByteEncoder } from "../fileParsing/encoder";
 import type { BencodeDict } from "../types/parserTypes";
+import { validDecode } from "../utils/compareFiles";
 
 export function getHash() {
   // read file from filesystem
@@ -16,8 +17,12 @@ export function getHash() {
   //encode only the torrent info portion using bEncodeEncoder
   const encoded = encoder.encode(decoded["info"]!);
 
+  // check valid translation
+  if (!validDecode(file, encoded))
+    throw new Error("Encoded and Decoded hashes differ");
+
   const infoHash = createHash("sha1").update(encoded).digest();
 
-  //format output to copy off the terminal pad with 0 to ensure letters since a => 0x0a and not 0xa
+  // return as a byte buffer, process at call site
   return infoHash;
 }

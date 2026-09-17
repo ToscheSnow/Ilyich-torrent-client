@@ -1,5 +1,5 @@
 import { TextDecoder } from "util";
-import { parseCompactPeers } from "../../reqTracker";
+import { parseCompactPeers } from "../trackers.ts/reqTracker";
 
 export function toJsonSafe(value: unknown, key?: string): unknown {
   const decoder = new TextDecoder();

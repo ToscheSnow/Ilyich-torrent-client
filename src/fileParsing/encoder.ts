@@ -97,7 +97,7 @@ export class ByteEncoder {
     let offset = 1;
 
     //offset helps lay the arrays in a contiguous order
-    for (let encodedEntry of encodedEntries) {
+    for (const encodedEntry of encodedEntries) {
       res.set(encodedEntry, offset);
       offset += encodedEntry.length;
     }
