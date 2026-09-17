@@ -1,15 +1,8 @@
-import { ByteParser } from "./src/fileParsing/parserDecoder";
-import { readFileSync, writeFileSync } from "fs";
-const buf = readFileSync("2001.torrent");
-const parser = new ByteParser(new Uint8Array(buf));
+import { TextDecoder } from "util";
+import { parseCompactPeers } from "../../reqTracker";
 
-const decoder = new TextDecoder();
-
-const res = parser.parse();
-
-console.log(res);
-
-function toJsonSafe(value: unknown, key?: string): unknown {
+export function toJsonSafe(value: unknown, key?: string): unknown {
+  const decoder = new TextDecoder();
   if (value instanceof Uint8Array) {
     if (key === "pieces") {
       if (value.length % 20 !== 0) {
@@ -25,6 +18,10 @@ function toJsonSafe(value: unknown, key?: string): unknown {
       }
 
       return pieces;
+    }
+
+    if (key === "peers") {
+      return parseCompactPeers(value);
     }
 
     return decoder.decode(value);
@@ -45,6 +42,3 @@ function toJsonSafe(value: unknown, key?: string): unknown {
 
   return value;
 }
-
-const json = JSON.stringify(toJsonSafe(res), null, 2);
-writeFileSync("output.txt", json, "utf-8");
