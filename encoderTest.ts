@@ -2,7 +2,7 @@ import { ByteEncoder } from "./src/fileParsing/encoder";
 import { ByteParser } from "./src/fileParsing/parserDecoder";
 import { readFileSync, writeFileSync } from "fs";
 import { createHash } from "node:crypto";
-const buf = readFileSync("2001.torrent");
+const buf = readFileSync("test.torrent");
 const parser = new ByteParser(new Uint8Array(buf));
 
 const res = parser.parse();
