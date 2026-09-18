@@ -6,7 +6,7 @@ import type { PeerLocation } from "../types/tracker";
 import { CLIENT_ID_BYTES } from "../../client";
 import { verifyHandshake } from "./verifyHandshake";
 import { peerMessageParser } from "./peerParser";
-import { dispatch, type TCP_CONNECTION } from "./tcpState";
+import { dispatch, type TCP_CONNECTION } from "../stateMachines/tcpState";
 
 const peer: PeerLocation = {
   ip: "127.0.0.1",
