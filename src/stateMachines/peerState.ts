@@ -1,85 +1,83 @@
-export interface PeerState {
-  // i can send
-  amChoking: boolean;
+import type { BlockRequest, PeerEvent, TorrentPeer } from "../types/peerTypes";
 
-  // i want something
-  amInterested: boolean;
+type RequestKey = `${number}:${number}:${number}`;
 
-  // i can not receive
-  peerChoking: boolean;
-
-  // they want something
-  peerInterested: boolean;
+function requestKey(r: BlockRequest): RequestKey {
+  return `${r.piece}:${r.offset}:${r.length}`;
 }
 
-export interface TorrentPeer {
-  state: PeerState;
-  pieces: Set<number>;
-  pending: Set<number>;
-  queue: number[];
-}
-
-export type PeerEvent =
-  | { type: "CHOKE" }
-  | { type: "UNCHOKE" }
-  | { type: "INTERESTED" }
-  | { type: "NOT-INTERESTED" }
-  | { type: "HAVE"; pieceId: number }
-  | { type: "BITFIELD"; field: Uint8Array }
-  | { type: "REQUEST"; piece: number; index: number; length: number }
-  | { type: "PIECE"; piece: number; offset: number; block: Buffer }
-  | { type: "CANCEL"; piece: number; index: number; length: number }
-  | { type: "PORT" };
-
-function transitionPEER(state: PeerState, event: PeerEvent) {
+export function transitionPeer(
+  peer: TorrentPeer,
+  event: PeerEvent,
+): TorrentPeer {
   switch (event.type) {
-    case "CHOKE": {
-      state.peerChoking = true;
-      return state;
-    }
-    case "UNCHOKE": {
-      state.peerChoking = false;
-      return state;
-    }
-    case "INTERESTED": {
-      state.peerInterested = true;
-      return state;
-    }
-    case "NOT-INTERESTED": {
-      state.peerInterested = false;
-      return state;
-    }
-    case "HAVE": {
-      return state;
-    }
-    case "BITFIELD": {
-      return state;
-    }
+    case "CHOKE":
+      return {
+        ...peer,
+        state: {
+          ...peer.state,
+          peerChoking: true,
+        },
+      };
 
-    case "REQUEST": {
-      if (state.amChoking) {
+    case "UNCHOKE":
+      return {
+        ...peer,
+        state: {
+          ...peer.state,
+          peerChoking: false,
+        },
+      };
+
+    case "INTERESTED":
+      return {
+        ...peer,
+        state: {
+          ...peer.state,
+          peerInterested: true,
+        },
+      };
+
+    case "NOT-INTERESTED":
+      return {
+        ...peer,
+        state: {
+          ...peer.state,
+          peerInterested: false,
+        },
+      };
+
+    case "HAVE":
+      peer.pieces.add(event.pieceId);
+      return peer;
+
+    case "BITFIELD":
+      // Decode event.field and update peer.pieces
+      return peer;
+
+    case "REQUEST":
+      if (peer.state.amChoking) {
         throw new Error("Peer requested while choked");
       }
 
-      return state;
-    }
-    case "CANCEL": {
-      return state;
-    }
+      // Validate request here
+      return peer;
 
-    case "PIECE": {
-      if (state.peerChoking) {
+    case "CANCEL":
+      // Remove matching request from upload/request tracking
+      return peer;
+
+    case "PIECE":
+      if (peer.state.peerChoking) {
         throw new Error("Received piece while peer is choking us");
       }
 
-      return state;
-    }
+      // Match against pending request
+      // Remove it from pendingRequests
+      // Process block elsewhere
+      return peer;
 
-    default:
-      throw new Error("Invalid event to state handler");
+    case "PORT":
+      return peer;
   }
-}
-
-export function dispatchPeer(peer: TorrentPeer, event: PeerEvent) {
-  peer.state = transitionPEER(peer.state, event);
 }
