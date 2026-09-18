@@ -1,13 +1,11 @@
-import { readFileSync } from "fs";
 import { ByteParser } from "../fileParsing/parserDecoder";
 import { createHash } from "crypto";
 import { ByteEncoder } from "../fileParsing/encoder";
 import type { BencodeDict } from "../types/parserTypes";
 import { validDecode } from "../utils/compareFiles";
 
-export function getHash() {
+export function getHash(file: Buffer) {
   // read file from filesystem
-  const file = readFileSync("test.torrent");
   const parser = new ByteParser(file);
 
   // decode into bEncodeDict using parser
@@ -18,7 +16,7 @@ export function getHash() {
   const encoded = encoder.encode(decoded["info"]!);
 
   // check valid translation
-  if (!validDecode(file, encoded))
+  if (!validDecode(file, encoder.encode(decoded)))
     throw new Error("Encoded and Decoded hashes differ");
 
   const infoHash = createHash("sha1").update(encoded).digest();
