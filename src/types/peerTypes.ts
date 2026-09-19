@@ -27,6 +27,8 @@ export interface TorrentPeer {
   requestQueue: BlockRequest[];
 }
 
+
+
 export type PeerEvent =
   | { type: "CHOKE" }
   | { type: "UNCHOKE" }
