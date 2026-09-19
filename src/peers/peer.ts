@@ -1,18 +1,38 @@
-import type { BlockRequest, PeerEvent, PeerState } from "../types/peerTypes";
+import type {
+  BlockRequest,
+  PeerEvent,
+  PeerState,
+  PendingRequest,
+  Piece,
+} from "../types/peerTypes";
+import { availablePieces } from "./bitfield";
+
+export const defaultPeerState: PeerState = {
+  amChoking: true,
+
+  // i want something
+  amInterested: false,
+
+  // i can not receive
+  peerChoking: true,
+
+  // they want something
+  peerInterested: false,
+};
 
 export class Peer {
   private state: PeerState;
 
   private pieces = new Set<number>();
 
-  private pendingRequests = new Map<string, BlockRequest>();
+  private pendingRequests = new Map<string, PendingRequest>();
   private requestQueue: BlockRequest[] = [];
 
   constructor(peerConfig: PeerState) {
     this.state = peerConfig;
   }
 
-  private transition(event: PeerEvent): void {
+  public handleEvent(event: PeerEvent): void {
     switch (event.type) {
       case "CHOKE":
         this.state.peerChoking = true;
@@ -36,6 +56,7 @@ export class Peer {
 
       case "BITFIELD":
         // Decode event.field and update this.pieces
+        availablePieces(event.field, this.pieces);
         break;
 
       case "REQUEST":
@@ -54,14 +75,28 @@ export class Peer {
         if (this.state.peerChoking) {
           throw new Error("Received piece while peer is choking");
         }
+        const pieceKey = this.getPieceKey(event.piece);
+        const pendingReq = this.pendingRequests.get(pieceKey);
 
-        // Match against pendingRequests
-        // Remove it
-        // Hand block to piece manager
+        if (!pendingReq) {
+          throw new Error("Received unexpected piece");
+        }
+
+        if (pendingReq.request.length !== event.piece.block.length) {
+          throw new Error("Received piece with incorrect length");
+        }
+
+        this.pendingRequests.delete(pieceKey);
+
+        // hand block to piece manager later
         break;
 
       case "PORT":
         break;
     }
+  }
+
+  private getPieceKey({ pieceIdx, offset }: Piece): string {
+    return `${pieceIdx},${offset}`;
   }
 }

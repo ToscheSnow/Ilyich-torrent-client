@@ -1,22 +1,24 @@
 import net from "node:net";
 import { handshake } from "./handshake";
-import { getHash } from "../trackers/info_hash";
-import { readFileSync } from "node:fs";
+import { getHash } from "../fileParsing/info_hash";
 import type { PeerLocation } from "../types/tracker";
 import { CLIENT_ID_BYTES } from "../../client";
 import { verifyHandshake } from "./verifyHandshake";
-import { peerMessageParser } from "./peerParser";
 import { dispatch, type TCP_CONNECTION } from "../stateMachines/tcpState";
+import { parseEventFromMessage } from "./parseEventFromMessage";
+import { defaultPeerState, Peer } from "./peer";
 
-const peer: PeerLocation = {
+const peerConfig: PeerLocation = {
   ip: "127.0.0.1",
   port: 6881,
 };
 
-const socket = net.createConnection(peer);
+const peer = new Peer(defaultPeerState);
+
+const socket = net.createConnection(peerConfig);
 const connection: TCP_CONNECTION = { socket, state: "CONNECTING" };
 
-const hash = getHash(readFileSync("./sampleTorrents/2001.torrent"));
+const hash = getHash();
 
 const handshakeBuf = handshake(hash, CLIENT_ID_BYTES);
 
@@ -74,7 +76,9 @@ socket.on("data", (chunk) => {
 
       const message = buf.subarray(4, 4 + messageLen);
 
-      peerMessageParser(message);
+      const event = parseEventFromMessage(message);
+      peer.handleEvent(event);
+      console.log(event);
 
       buf = buf.subarray(4 + messageLen);
 

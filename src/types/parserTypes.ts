@@ -8,12 +8,13 @@ export type BencodeDict = {
   [key: string]: BencodeVal;
 };
 
-export type TorrentInfo = SingleFileInfo | MultiFileInfo;
+export type TorrentMetadata = SingleFileInfo | MultiFileInfo;
 
 export interface BaseInfo {
+  infoHash: Uint8Array;
   name: string;
   "piece length": number;
-  pieces: Uint8Array;
+  pieceHashes: Uint8Array;
   private?: number;
 }
 

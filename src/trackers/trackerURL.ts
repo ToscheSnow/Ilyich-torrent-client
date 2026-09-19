@@ -1,5 +1,5 @@
 import type { trackerURLParams } from "../types/tracker";
-import { CLIENT_ID } from "../../client";
+import { CLIENT_ID_BYTES } from "../../client";
 
 export function trackerURL({
   urlPath,
@@ -17,7 +17,7 @@ export function trackerURL({
   }
 
   const infoHashEncoded = encodeBytes(infoHash);
-  const peerIdEncoded = encodeBytes(CLIENT_ID);
+  const peerIdEncoded = encodeBytes(CLIENT_ID_BYTES);
 
   url.searchParams.set("port", clientPort.toString());
   url.searchParams.set("uploaded", uploaded.toString());

@@ -1,5 +1,5 @@
 export function availablePieces(
-  receivedBitfield: Buffer,
+  receivedBitfield: Uint8Array,
   peerPieces: Set<number>,
 ): void {
   if (receivedBitfield.length % 8 !== 0)

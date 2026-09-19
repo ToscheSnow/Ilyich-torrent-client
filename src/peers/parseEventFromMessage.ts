@@ -1,6 +1,6 @@
 import type { PeerEvent } from "../types/peerTypes";
 
-export function peerMessageParser(message: Buffer): PeerEvent {
+export function parseEventFromMessage(message: Buffer): PeerEvent {
   // messageID always takes up 1 byte
   const messageID = message.readUInt8();
   //according to the bitTorrent protocol
@@ -36,9 +36,11 @@ export function peerMessageParser(message: Buffer): PeerEvent {
         throw new Error("Piece isn't of sufficient length");
       return {
         type: "PIECE",
-        piece: message.readUInt32BE(1),
-        offset: message.readUInt32BE(5),
-        block: Buffer.from(message.subarray(9)),
+        piece: {
+          pieceIdx: message.readUInt32BE(1),
+          offset: message.readUInt32BE(5),
+          block: Buffer.from(message.subarray(9)),
+        },
       };
     case 8:
       // CANCEL request payload has exactly 12 bytes 4 from each piece,offset and length
