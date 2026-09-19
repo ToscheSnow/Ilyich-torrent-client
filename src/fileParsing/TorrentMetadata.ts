@@ -16,7 +16,7 @@ export function infoDict(decodedTorrent: BencodeDict): TorrentMetadata {
   if ("length" in info) {
     return {
       name,
-      "piece length": pieceLength,
+      pieceLength,
       pieceHashes,
       length: info["length"] as number,
       infoHash,
@@ -27,7 +27,7 @@ export function infoDict(decodedTorrent: BencodeDict): TorrentMetadata {
   return {
     infoHash,
     name,
-    "piece length": pieceLength,
+    pieceLength,
     pieceHashes,
     files: info["files"]! as unknown as TorrentFile[],
   };

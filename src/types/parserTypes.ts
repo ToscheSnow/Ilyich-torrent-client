@@ -13,7 +13,7 @@ export type TorrentMetadata = SingleFileInfo | MultiFileInfo;
 export interface BaseInfo {
   infoHash: Uint8Array;
   name: string;
-  "piece length": number;
+  pieceLength: number;
   pieceHashes: Uint8Array;
   private?: number;
 }
@@ -29,4 +29,8 @@ interface MultiFileInfo extends BaseInfo {
 export interface TorrentFile {
   length: number;
   path: string[];
+}
+
+export interface DISKFile extends TorrentFile {
+  startOffset: number;
 }
