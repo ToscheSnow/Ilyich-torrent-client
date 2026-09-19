@@ -1,3 +1,4 @@
+import { BLOCK_SIZE } from "../../client";
 import type { DISKFile, TorrentMetadata } from "../types/parserTypes";
 
 export class StorageManager {
@@ -42,7 +43,7 @@ export class StorageManager {
 
   writePiece(pieceIdx: number, pieceBuf: Buffer) {
     // piece goes from 16*1024*pieceIdx to 16*1024*pieceIdx+pieceBuf.length;
-    const pieceOffset = 16 * 1024 * pieceIdx;
+    const pieceOffset = BLOCK_SIZE * pieceIdx;
     const pieceEnd = pieceOffset + pieceBuf.length;
 
     for (const { startOffset, length } of this.files) {

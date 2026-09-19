@@ -1,3 +1,4 @@
+import { BLOCK_SIZE } from "../../client";
 import type { TorrentMetadata } from "../types/parserTypes";
 import type { Piece } from "../types/peerTypes";
 import { createHash } from "crypto";
@@ -43,7 +44,7 @@ export class PieceManager {
   getBlockCount(pieceIdx: number) {
     const length = this.getPieceLength(pieceIdx);
 
-    return Math.ceil(length / (16 * 1024));
+    return Math.ceil(length / BLOCK_SIZE);
   }
 
   getBlockLength(pieceIdx: number, offset: number): number {
@@ -53,7 +54,7 @@ export class PieceManager {
       throw new Error("Invalid block offset");
     }
 
-    return Math.min(16_384, pieceLength - offset);
+    return Math.min(BLOCK_SIZE, pieceLength - offset);
   }
 
   isValidBlock(pieceIdx: number, offset: number, length: number): boolean {
@@ -69,8 +70,6 @@ export class PieceManager {
   }
 
   receiveBlock({ pieceIdx, offset, block }: Piece) {
-    const length = this.getBlockLength(pieceIdx, offset);
-
     if (!this.isValidBlock(pieceIdx, offset, block.length)) {
       console.warn("Invalid piece receiveBlock");
       return;
@@ -84,7 +83,7 @@ export class PieceManager {
     const numBlocks = this.getBlockCount(pieceIdx);
 
     for (let i = 0; i < numBlocks; i++) {
-      if (this.blocks.get(`${pieceIdx},${i * 16 * 1024}`) === undefined)
+      if (this.blocks.get(`${pieceIdx},${i * BLOCK_SIZE}`) === undefined)
         return false;
     }
     return true;
@@ -97,7 +96,7 @@ export class PieceManager {
     const blocks = this.getBlockCount(pieceIdx);
 
     for (let i = 0; i < blocks; i++) {
-      const key = `${pieceIdx},${i * 1024 * 16}`;
+      const key = `${pieceIdx},${i * BLOCK_SIZE}`;
       buf = Buffer.concat([buf, this.blocks.get(key)!]);
     }
 

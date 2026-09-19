@@ -26,9 +26,11 @@ export function parseEventFromMessage(message: Buffer): PeerEvent {
       if (message.length !== 13) throw new Error("Invalid REQUEST message");
       return {
         type: "REQUEST",
-        piece: message.readUInt32BE(1),
-        offset: message.readUInt32BE(5),
-        length: message.readUInt32BE(9),
+        block: {
+          piece: message.readUInt32BE(1),
+          offset: message.readUInt32BE(5),
+          length: message.readUInt32BE(9),
+        },
       };
     case 7:
       //piece and offset consume atleast 8 bytes 4 from each
@@ -47,9 +49,11 @@ export function parseEventFromMessage(message: Buffer): PeerEvent {
       if (message.length !== 13) throw new Error("Invalid CANCEL message");
       return {
         type: "CANCEL",
-        piece: message.readUInt32BE(1),
-        offset: message.readUInt32BE(5),
-        length: message.readUInt32BE(9),
+        block: {
+          piece: message.readUInt32BE(1),
+          offset: message.readUInt32BE(5),
+          length: message.readUInt32BE(9),
+        },
       };
 
     //no idea what port does 🥺

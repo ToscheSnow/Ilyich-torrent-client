@@ -1,3 +1,4 @@
+import { AsyncMessageQueue } from "../Queues/MessageQueue";
 import type {
   BlockRequest,
   PeerEvent,
@@ -6,6 +7,7 @@ import type {
   Piece,
 } from "../types/peerTypes";
 import { availablePieces } from "./bitfield";
+import { Socket } from "net";
 
 export const defaultPeerState: PeerState = {
   amChoking: true,
@@ -26,10 +28,15 @@ export class Peer {
   private pieces = new Set<number>();
 
   private pendingRequests = new Map<string, PendingRequest>();
-  private requestQueue: BlockRequest[] = [];
+  private reqQueue: AsyncMessageQueue<Buffer> = new AsyncMessageQueue<Buffer>();
 
-  constructor(peerConfig: PeerState) {
+  constructor(
+    peerConfig: PeerState,
+    private socket: Socket,
+  ) {
     this.state = peerConfig;
+
+    this.startLoop();
   }
 
   public handleEvent(event: PeerEvent): void {
@@ -63,12 +70,13 @@ export class Peer {
         if (this.state.amChoking) {
           throw new Error("Peer requested while choked");
         }
-
-        // Validate request
+        // this is for them to send us a request we will send them the piece which is a buffer
         break;
 
       case "CANCEL":
         // Remove matching request from upload tracking
+
+        //
         break;
 
       case "PIECE":
@@ -98,5 +106,62 @@ export class Peer {
 
   private getPieceKey({ pieceIdx, offset }: Piece): string {
     return `${pieceIdx},${offset}`;
+  }
+
+  private REQUEST_BUFFER({ piece, offset, length }: BlockRequest): Buffer {
+    const buf = Buffer.alloc(17);
+
+    // 13 bytes for piece request
+    buf[0] = 0x0d; // length
+
+    // piece request id is 6
+    buf[4] = 0x06; //
+
+    buf.writeUInt32BE(piece, 5);
+
+    buf.writeUInt32BE(offset, 9);
+
+    buf.writeUInt32BE(length, 13);
+
+    return buf;
+  }
+
+  private CANCEL_BUFFER({ piece, offset, length }: BlockRequest): Buffer {
+    const buf = Buffer.alloc(17);
+
+    // 13 bytes always in hex for cancel request
+    buf[0] = 0x0d; // length
+
+    // message id 8 for canceling a request
+    buf[4] = 0x08; //
+
+    buf.writeUInt32BE(piece, 5);
+
+    buf.writeUInt32BE(offset, 9);
+
+    buf.writeUInt32BE(length, 13);
+
+    return buf;
+  }
+
+  public request(req: Buffer): void {
+    //if not valid request throw
+
+    //check if we are being choked 😂
+
+    this.reqQueue.push(req);
+  }
+
+  public cancelReq(req: Buffer): void {
+    //if not valid request throw
+
+    this.reqQueue.push(req);
+  }
+
+  private async startLoop() {
+    while (true) {
+      const req = await this.reqQueue.pop();
+      this.socket.write(req);
+    }
   }
 }

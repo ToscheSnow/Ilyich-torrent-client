@@ -29,14 +29,6 @@ export interface PendingRequest {
   sentAt: number;
 }
 
-export interface TorrentPeer {
-  state: PeerState;
-  pieces: Set<number>;
-
-  pendingRequests: Map<string, PendingRequest>;
-  requestQueue: BlockRequest[];
-}
-
 export type PeerEvent =
   | { type: "CHOKE" }
   | { type: "UNCHOKE" }
@@ -44,7 +36,7 @@ export type PeerEvent =
   | { type: "NOT-INTERESTED" }
   | { type: "HAVE"; pieceId: number }
   | { type: "BITFIELD"; field: Uint8Array }
-  | { type: "REQUEST"; piece: number; offset: number; length: number }
+  | { type: "REQUEST"; block: BlockRequest }
   | { type: "PIECE"; piece: Piece }
-  | { type: "CANCEL"; piece: number; offset: number; length: number }
+  | { type: "CANCEL"; block: BlockRequest }
   | { type: "PORT" };
