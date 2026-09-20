@@ -10,10 +10,12 @@ export interface PeerState {
 
   // they want something
   peerInterested: boolean;
+
+  maxInFlight:number
 }
 
 export interface BlockRequest {
-  piece: number;
+  pieceIdx: number;
   offset: number;
   length: number;
 }

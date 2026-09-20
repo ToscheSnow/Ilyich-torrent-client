@@ -5,4 +5,4 @@ export const CLIENT_ID_BYTES = Buffer.from(
 
 export const CLIENT_ID_STRING = "67697665206D6520736E6F7762756E6E69657321";
 
-export const BLOCK_SIZE = 16384;
+export const BLOCK_SIZE = 16 * 1024;

@@ -1,8 +1,8 @@
 import { BLOCK_SIZE } from "../../client";
 import type { TorrentMetadata } from "../types/parserTypes";
-import type { Piece } from "../types/peerTypes";
+import type { BlockRequest, Piece } from "../types/peerTypes";
 import { createHash } from "crypto";
-import type { StorageManager } from "./StorageManager";
+import type { StorageManager } from "../fileAssembly/StorageManager";
 
 export class PieceManager {
   private totalLength: number;
@@ -12,9 +12,10 @@ export class PieceManager {
   private hashes: Uint8Array;
   private verifiedPieces: Set<number> = new Set<number>();
 
-  constructor(
+  public constructor(
     { pieceHashes, pieceLength, ...meta }: TorrentMetadata,
     private storageManager: StorageManager,
+    private notifyScheduler: (blockKey: string) => void,
   ) {
     this.pieceLength = pieceLength;
     this.hashes = pieceHashes;
@@ -33,7 +34,7 @@ export class PieceManager {
     return Math.ceil(this.totalLength / this.pieceLength);
   }
 
-  getPieceLength(pieceIdx: number): number {
+  private getPieceLength(pieceIdx: number): number {
     if (pieceIdx < 0 || pieceIdx >= this.pieceCount) {
       throw new Error("Invalid piece index");
     }
@@ -45,13 +46,13 @@ export class PieceManager {
     return this.pieceLength;
   }
 
-  getBlockCount(pieceIdx: number) {
+  private getBlockCount(pieceIdx: number) {
     const length = this.getPieceLength(pieceIdx);
 
     return Math.ceil(length / BLOCK_SIZE);
   }
 
-  getBlockLength(pieceIdx: number, offset: number): number {
+  private getBlockLength(pieceIdx: number, offset: number): number {
     const pieceLength = this.getPieceLength(pieceIdx);
 
     if (offset < 0 || offset >= pieceLength) {
@@ -61,7 +62,11 @@ export class PieceManager {
     return Math.min(BLOCK_SIZE, pieceLength - offset);
   }
 
-  isValidBlock(pieceIdx: number, offset: number, length: number): boolean {
+  private isValidBlock(
+    pieceIdx: number,
+    offset: number,
+    length: number,
+  ): boolean {
     if (pieceIdx < 0 || pieceIdx >= this.pieceCount) {
       return false;
     }
@@ -73,7 +78,8 @@ export class PieceManager {
     return length === this.getBlockLength(pieceIdx, offset);
   }
 
-  async receiveBlock({ pieceIdx, offset, block }: Piece) {
+  public async receiveBlock(piece: Piece) {
+    const { pieceIdx, offset, block } = piece;
     if (!this.isValidBlock(pieceIdx, offset, block.length)) {
       console.warn("Invalid piece receiveBlock");
       return;
@@ -83,6 +89,8 @@ export class PieceManager {
 
     const blockKey = `${pieceIdx},${offset}`;
     this.blocks.set(blockKey, block);
+    this.notifyScheduler(piece);
+    // tell scheduler to remove it from the place
 
     if (this.isCompletePiece(pieceIdx)) {
       const assembled = this.assemblePiece(pieceIdx);
@@ -110,7 +118,7 @@ export class PieceManager {
     return true;
   }
 
-  public assemblePiece(pieceIdx: number): Buffer {
+  private assemblePiece(pieceIdx: number): Buffer {
     if (!this.isCompletePiece(pieceIdx)) throw new Error("Piece isnt valid");
 
     let buf = Buffer.alloc(0);
@@ -124,8 +132,26 @@ export class PieceManager {
     return buf;
   }
 
-  verifyPiece(downloadedPiece: Buffer, actualHash: Buffer): boolean {
+  private verifyPiece(downloadedPiece: Buffer, actualHash: Buffer): boolean {
     const pieceHash = createHash("sha1").update(downloadedPiece).digest();
     return actualHash.equals(pieceHash);
+  }
+
+  public getNeededBlocks(pieceIdx: number): BlockRequest[] {
+    const numBlocks = this.getBlockCount(pieceIdx);
+
+    const neededBlocks: BlockRequest[] = [];
+
+    for (let i = 0; i < numBlocks; i++) {
+      const blockSize = this.getBlockLength(pieceIdx, i * BLOCK_SIZE);
+      const key = `${pieceIdx},${blockSize}`;
+      if (!this.blocks.has(key))
+        neededBlocks.push({
+          pieceIdx,
+          length: blockSize,
+          offset: i * BLOCK_SIZE,
+        });
+    }
+    return neededBlocks;
   }
 }

@@ -1,4 +1,4 @@
-import type { PieceManager } from "../fileAssembly/PieceManager";
+import type { PieceManager } from "../Pieces/PieceManager";
 import { AsyncMessageQueue } from "../Queues/MessageQueue";
 import type {
   BlockRequest,
@@ -21,12 +21,14 @@ export const defaultPeerState: PeerState = {
 
   // they want something
   peerInterested: false,
+
+  maxInFlight: 10,
 };
 
 export class Peer {
   private state: PeerState;
 
-  private pieces = new Set<number>();
+  private availablePieces: Set<number> = new Set<number>();
 
   private pendingRequests = new Map<string, PendingRequest>();
   private reqQueue: AsyncMessageQueue<Buffer> = new AsyncMessageQueue<Buffer>();
@@ -35,10 +37,19 @@ export class Peer {
     peerConfig: PeerState,
     private socket: Socket,
     private pieceManager: PieceManager,
+    private onDisconnected: () => void,
   ) {
     this.state = peerConfig;
 
     this.startLoop();
+
+    socket.on("close", () => {
+      this.onDisconnected();
+    });
+
+    socket.on("error", () => {
+      onDisconnected();
+    });
   }
 
   public async handleEvent(event: PeerEvent): Promise<void> {
@@ -60,12 +71,12 @@ export class Peer {
         break;
 
       case "HAVE":
-        this.pieces.add(event.pieceId);
+        this.availablePieces.add(event.pieceId);
         break;
 
       case "BITFIELD":
-        // Decode event.field and update this.pieces
-        availablePieces(event.field, this.pieces);
+        // Decode event.field and update this.availablePieces
+        availablePieces(event.field, this.availablePieces);
         break;
 
       case "REQUEST":
@@ -111,7 +122,7 @@ export class Peer {
     return `${pieceIdx},${offset}`;
   }
 
-  private REQUEST_BUFFER({ piece, offset, length }: BlockRequest): Buffer {
+  private REQUEST_BUFFER({ pieceIdx, offset, length }: BlockRequest): Buffer {
     const buf = Buffer.alloc(17);
 
     // 13 bytes for piece request
@@ -120,7 +131,7 @@ export class Peer {
     // piece request id is 6
     buf[4] = 0x06; //
 
-    buf.writeUInt32BE(piece, 5);
+    buf.writeUInt32BE(pieceIdx, 5);
 
     buf.writeUInt32BE(offset, 9);
 
@@ -129,7 +140,7 @@ export class Peer {
     return buf;
   }
 
-  private CANCEL_BUFFER({ piece, offset, length }: BlockRequest): Buffer {
+  private CANCEL_BUFFER({ pieceIdx, offset, length }: BlockRequest): Buffer {
     const buf = Buffer.alloc(17);
 
     // 13 bytes always in hex for cancel request
@@ -138,7 +149,7 @@ export class Peer {
     // message id 8 for canceling a request
     buf[4] = 0x08; //
 
-    buf.writeUInt32BE(piece, 5);
+    buf.writeUInt32BE(pieceIdx, 5);
 
     buf.writeUInt32BE(offset, 9);
 
@@ -147,18 +158,19 @@ export class Peer {
     return buf;
   }
 
-  public request(req: Buffer): void {
+  public request(req: BlockRequest): void {
     //if not valid request throw
-
+    const buf = this.REQUEST_BUFFER(req);
     //check if we are being choked 😂
 
-    this.reqQueue.push(req);
+    this.reqQueue.push(buf);
   }
 
-  public cancelReq(req: Buffer): void {
+  public cancelReq(req: BlockRequest): void {
     //if not valid request throw
+    const buf = this.CANCEL_BUFFER(req);
 
-    this.reqQueue.push(req);
+    this.reqQueue.push(buf);
   }
 
   private async startLoop() {
@@ -166,5 +178,17 @@ export class Peer {
       const req = await this.reqQueue.pop();
       this.socket.write(req);
     }
+  }
+
+  public get isPeerChoking(): boolean {
+    return this.state.peerChoking;
+  }
+
+  public get pieces(): Set<number> {
+    return this.availablePieces;
+  }
+
+  public get isOverloaded(): boolean {
+    return this.pendingRequests.size >= this.state.maxInFlight;
   }
 }
