@@ -31,7 +31,7 @@ socket.on("connect", () => {
 
 let buf = Buffer.alloc(0);
 
-socket.on("data", (chunk) => {
+socket.on("data", async (chunk) => {
   buf = Buffer.concat([buf, chunk]);
 
   while (true) {
@@ -77,10 +77,10 @@ socket.on("data", (chunk) => {
       const message = buf.subarray(4, 4 + messageLen);
 
       const event = parseEventFromMessage(message);
-      peer.handleEvent(event);
-      console.log(event);
-
       buf = buf.subarray(4 + messageLen);
+
+      await peer.handleEvent(event);
+      console.log(event);
 
       continue;
     }

@@ -5,7 +5,9 @@ import type {
   TorrentMetadata,
 } from "../types/parserTypes";
 
-export function infoDict(decodedTorrent: BencodeDict): TorrentMetadata {
+export function infoDict(
+  decodedTorrent: BencodeDict,
+): Readonly<TorrentMetadata> {
   const info = decodedTorrent["info"] as BencodeDict;
   const infoHash = getHash(decodedTorrent);
   const name = info["name"] as string;

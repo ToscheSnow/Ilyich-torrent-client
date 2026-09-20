@@ -1,15 +1,17 @@
+import { mkdir, open, type FileHandle } from "fs/promises";
 import { BLOCK_SIZE } from "../../client";
 import type { DISKFile, TorrentMetadata } from "../types/parserTypes";
+import path from "path";
 
 export class StorageManager {
   //file : [{fileLen,startOffset,path}]
   files: DISKFile[] = [];
+  private fileHandles: Map<string, FileHandle> = new Map<string, FileHandle>();
 
   constructor(
     meta: TorrentMetadata,
     private dirPath: string,
   ) {
-    this.dirPath = dirPath;
     //single file
     if ("length" in meta) {
       this.files.push({
@@ -35,18 +37,54 @@ export class StorageManager {
     }
   }
 
+  static async create(meta: TorrentMetadata, dirPath: string) {
+    const manager = new StorageManager(meta, dirPath);
+
+    await manager.initFileHandles();
+
+    return manager;
+  }
+
+  async close() {
+    for (const fileHandle of this.fileHandles.values()) {
+      await fileHandle.close();
+    }
+
+    this.fileHandles.clear();
+  }
+
+  async initFileHandles() {
+    for (const { length, path: pathArr } of this.files) {
+      const filePath = path.join(this.dirPath, ...pathArr);
+      const dirPath = path.dirname(filePath);
+
+      await mkdir(dirPath, { recursive: true });
+      let fileHandle;
+
+      try {
+        fileHandle = await open(filePath, "r+");
+      } catch (err) {
+        // file doesn't exist → create it
+        fileHandle = await open(filePath, "w+");
+      }
+
+      await fileHandle.truncate(length);
+      this.fileHandles.set(filePath, fileHandle);
+    }
+  }
+
   // file a 100 260
   //file b 260 300
   //file c 300 450
 
   //buffer 290 340
 
-  writePiece(pieceIdx: number, pieceBuf: Buffer) {
-    // piece goes from 16*1024*pieceIdx to 16*1024*pieceIdx+pieceBuf.length;
+  async writePiece(pieceIdx: number, pieceBuf: Buffer) {
+    // piece this.files from 16*1024*pieceIdx to 16*1024*pieceIdx+pieceBuf.length;
     const pieceOffset = BLOCK_SIZE * pieceIdx;
     const pieceEnd = pieceOffset + pieceBuf.length;
 
-    for (const { startOffset, length } of this.files) {
+    for (const { startOffset, length, path: pathArr } of this.files) {
       //
 
       if (startOffset + length <= pieceOffset) continue;
@@ -61,7 +99,15 @@ export class StorageManager {
         pieceEnd,
       );
       //write to file
+      const filePath = path.join(this.dirPath, ...pathArr);
+      const fileHandle = this.fileHandles.get(filePath)!;
 
+      await fileHandle.write(
+        pieceBuf,
+        start,
+        end - start,
+        pieceOffset + start - startOffset,
+      );
       //
     }
   }

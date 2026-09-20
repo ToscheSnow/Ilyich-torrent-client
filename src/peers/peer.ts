@@ -1,3 +1,4 @@
+import type { PieceManager } from "../fileAssembly/PieceManager";
 import { AsyncMessageQueue } from "../Queues/MessageQueue";
 import type {
   BlockRequest,
@@ -33,13 +34,14 @@ export class Peer {
   constructor(
     peerConfig: PeerState,
     private socket: Socket,
+    private pieceManager: PieceManager,
   ) {
     this.state = peerConfig;
 
     this.startLoop();
   }
 
-  public handleEvent(event: PeerEvent): void {
+  public async handleEvent(event: PeerEvent): Promise<void> {
     switch (event.type) {
       case "CHOKE":
         this.state.peerChoking = true;
@@ -95,8 +97,9 @@ export class Peer {
         }
 
         this.pendingRequests.delete(pieceKey);
-
+        await this.pieceManager.receiveBlock(event.piece);
         // hand block to piece manager later
+
         break;
 
       case "PORT":

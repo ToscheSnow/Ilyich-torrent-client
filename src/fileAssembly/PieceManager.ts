@@ -2,6 +2,7 @@ import { BLOCK_SIZE } from "../../client";
 import type { TorrentMetadata } from "../types/parserTypes";
 import type { Piece } from "../types/peerTypes";
 import { createHash } from "crypto";
+import type { StorageManager } from "./StorageManager";
 
 export class PieceManager {
   private totalLength: number;
@@ -11,7 +12,10 @@ export class PieceManager {
   private hashes: Uint8Array;
   private verifiedPieces: Set<number> = new Set<number>();
 
-  constructor({ pieceHashes, pieceLength, ...meta }: TorrentMetadata) {
+  constructor(
+    { pieceHashes, pieceLength, ...meta }: TorrentMetadata,
+    private storageManager: StorageManager,
+  ) {
     this.pieceLength = pieceLength;
     this.hashes = pieceHashes;
 
@@ -69,14 +73,30 @@ export class PieceManager {
     return length === this.getBlockLength(pieceIdx, offset);
   }
 
-  receiveBlock({ pieceIdx, offset, block }: Piece) {
+  async receiveBlock({ pieceIdx, offset, block }: Piece) {
     if (!this.isValidBlock(pieceIdx, offset, block.length)) {
       console.warn("Invalid piece receiveBlock");
       return;
     }
 
+    if (!this.verifiedPieces.has(pieceIdx)) return;
+
     const blockKey = `${pieceIdx},${offset}`;
     this.blocks.set(blockKey, block);
+
+    if (this.isCompletePiece(pieceIdx)) {
+      const assembled = this.assemblePiece(pieceIdx);
+
+      if (
+        this.verifyPiece(
+          assembled,
+          Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20)),
+        )
+      ) {
+        await this.storageManager.writePiece(pieceIdx, assembled);
+        this.verifiedPieces.add(pieceIdx);
+      }
+    }
   }
 
   private isCompletePiece(pieceIdx: number): boolean {
@@ -86,6 +106,7 @@ export class PieceManager {
       if (this.blocks.get(`${pieceIdx},${i * BLOCK_SIZE}`) === undefined)
         return false;
     }
+
     return true;
   }
 
@@ -105,7 +126,6 @@ export class PieceManager {
 
   verifyPiece(downloadedPiece: Buffer, actualHash: Buffer): boolean {
     const pieceHash = createHash("sha1").update(downloadedPiece).digest();
-
     return actualHash.equals(pieceHash);
   }
 }
