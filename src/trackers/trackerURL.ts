@@ -27,7 +27,7 @@ export function trackerURL({
   return (
     `${url.origin}${url.pathname}` +
     `?info_hash=${infoHashEncoded}` +
-    `&peer_id=${peerIdEncoded}` +
+    `&peer_id=${peerIdEncoded}&compact=1` +
     `&${url.searchParams.toString()}`
   );
 }

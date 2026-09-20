@@ -1,0 +1,8 @@
+import { Torrent } from "./torrent";
+
+const torrent = new Torrent(
+  "./deb.torrent",
+  "/Users/dhruv/Code/bunnyHunt/download",
+);
+
+torrent.start();

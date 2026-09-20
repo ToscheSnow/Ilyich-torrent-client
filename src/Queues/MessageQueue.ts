@@ -2,12 +2,17 @@ export class AsyncMessageQueue<T> {
   private items: T[] = [];
   private itemHead = 0;
 
-  private waiterHead = 0;
   private waiters: ((item: T) => void)[] = [];
 
   pop(): Promise<T> {
-    if (this.items.length - this.itemHead > 0) {
-      const item = this.items[this.itemHead++]!;
+    if (this.itemHead < this.items.length) {
+      const item = this.items[this.itemHead]!;
+      this.itemHead++;
+
+      if (this.itemHead === this.items.length) {
+        this.items = [];
+        this.itemHead = 0;
+      }
 
       return Promise.resolve(item);
     }
@@ -18,10 +23,11 @@ export class AsyncMessageQueue<T> {
   }
 
   push(item: T): void {
-    const waiter = this.waiters[this.waiterHead];
+    // same idea for waiters - shift() instead of a head pointer, so
+    // resolved waiters don't sit in the array forever
+    const waiter = this.waiters.shift();
 
     if (waiter) {
-      this.waiterHead++;
       waiter(item);
       return;
     }

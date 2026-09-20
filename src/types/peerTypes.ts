@@ -11,7 +11,7 @@ export interface PeerState {
   // they want something
   peerInterested: boolean;
 
-  maxInFlight:number
+  maxInFlight: number;
 }
 
 export interface BlockRequest {
@@ -20,9 +20,7 @@ export interface BlockRequest {
   length: number;
 }
 
-export interface Piece {
-  pieceIdx: number;
-  offset: number;
+export interface Piece extends PieceInfo {
   block: Buffer;
 }
 
@@ -42,3 +40,8 @@ export type PeerEvent =
   | { type: "PIECE"; piece: Piece }
   | { type: "CANCEL"; block: BlockRequest }
   | { type: "PORT" };
+
+export interface PieceInfo {
+  pieceIdx: number;
+  offset: number;
+}

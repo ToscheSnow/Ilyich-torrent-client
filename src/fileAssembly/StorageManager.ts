@@ -1,5 +1,4 @@
 import { mkdir, open, type FileHandle } from "fs/promises";
-import { BLOCK_SIZE } from "../../client";
 import type { DISKFile, TorrentMetadata } from "../types/parserTypes";
 import path from "path";
 
@@ -7,11 +6,17 @@ export class StorageManager {
   //file : [{fileLen,startOffset,path}]
   files: DISKFile[] = [];
   private fileHandles: Map<string, FileHandle> = new Map<string, FileHandle>();
+  private pieceLength: number;
 
   constructor(
     meta: TorrentMetadata,
     private dirPath: string,
   ) {
+    // needed to compute each piece's real byte offset in writePiece -
+    // BLOCK_SIZE (16KB, fixed) is NOT the same thing as a torrent's
+    // piece length (commonly 256KB-4MB and varies per torrent)
+    this.pieceLength = meta.pieceLength;
+
     //single file
     if ("length" in meta) {
       this.files.push({
@@ -55,7 +60,10 @@ export class StorageManager {
 
   async initFileHandles() {
     for (const { length, path: pathArr } of this.files) {
-      const filePath = path.join(this.dirPath, ...pathArr);
+      const filePath = path.join(
+        this.dirPath,
+        ...pathArr.map((part) => Buffer.from(part).toString("utf8")),
+      );
       const dirPath = path.dirname(filePath);
 
       await mkdir(dirPath, { recursive: true });
@@ -69,7 +77,10 @@ export class StorageManager {
       }
 
       await fileHandle.truncate(length);
+      console.log("OPENED FILE:", filePath);
       this.fileHandles.set(filePath, fileHandle);
+
+      console.log("FILE HANDLES:", [...this.fileHandles.keys()]);
     }
   }
 
@@ -80,8 +91,10 @@ export class StorageManager {
   //buffer 290 340
 
   async writePiece(pieceIdx: number, pieceBuf: Buffer) {
-    // piece this.files from 16*1024*pieceIdx to 16*1024*pieceIdx+pieceBuf.length;
-    const pieceOffset = BLOCK_SIZE * pieceIdx;
+    // piece offset must be computed from the torrent's pieceLength, not
+    // the fixed 16KB block size - using BLOCK_SIZE here wrote every piece
+    // to the wrong byte offset for any torrent with pieceLength !== 16KB
+    const pieceOffset = this.pieceLength * pieceIdx;
     const pieceEnd = pieceOffset + pieceBuf.length;
 
     for (const { startOffset, length, path: pathArr } of this.files) {
@@ -99,8 +112,22 @@ export class StorageManager {
         pieceEnd,
       );
       //write to file
-      const filePath = path.join(this.dirPath, ...pathArr);
+      console.log("pathArr =", pathArr);
+      console.log(
+        "pathArr types =",
+        pathArr.map((x) => typeof x),
+      );
+
+      const filePath = path.join(
+        this.dirPath,
+        ...pathArr.map((part) => Buffer.from(part).toString("utf8")),
+      );
+
+      console.log("filePath:", filePath);
+      console.log("known file handles:", [...this.fileHandles.keys()]);
       const fileHandle = this.fileHandles.get(filePath)!;
+
+      const startTime = performance.now();
 
       await fileHandle.write(
         pieceBuf,
@@ -109,6 +136,8 @@ export class StorageManager {
         pieceOffset + start - startOffset,
       );
       //
+
+      console.log(`disk write: ${(performance.now() - start).toFixed(2)} ms`);
     }
   }
 

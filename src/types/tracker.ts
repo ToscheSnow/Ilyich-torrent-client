@@ -7,7 +7,4 @@ export type trackerURLParams = {
   downloaded: number;
 };
 
-export type PeerLocation = {
-  ip: string;
-  port: number;
-};
+

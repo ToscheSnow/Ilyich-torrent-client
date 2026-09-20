@@ -1,8 +1,7 @@
-import { StorageManager } from "../fileAssembly/StorageManager";
 import type { Peer } from "../peers/peer";
 import type { PieceManager } from "../Pieces/PieceManager";
 import { AsyncMessageQueue } from "../Queues/MessageQueue";
-import type { Piece } from "../types/peerTypes";
+import type { SchedulerEvent } from "../types/schedulerTypes";
 
 //schedule blocks
 //
@@ -14,19 +13,96 @@ import type { Piece } from "../types/peerTypes";
 // blocks which exist in this piece
 //. && not already scheduled
 
-export type SchedulerEvent = {};
-
 export class Scheduler {
-  private scheduledBlocks: Map<string, Peer> = new Map<string, Peer>();
+  // outstanding request blocks and corresponding peers
+  // every block is requested by a unique peer
+  private requestedBlocks: Map<string, Peer> = new Map<string, Peer>();
+
+  // process Scheduler events async to avoid callback spaghetti
   private eventQueue: AsyncMessageQueue<SchedulerEvent> =
     new AsyncMessageQueue<SchedulerEvent>();
 
+  // inject dependencies instead ,since Scheduler shouldnt create Objects
   constructor(
-    private storageManager: StorageManager,
     private pieceManager: PieceManager,
-    private peers: Peer[],
-  ) {}
+    private peers: Set<Peer>,
+  ) {
+    pieceManager.setDispatch(this.dispatch);
 
+    this.eventLoop();
+  }
+
+  // processEventLoop for checking events
+  private async eventLoop() {
+    while (true) {
+      await this.schedulerEventTransition(await this.eventQueue.pop());
+    }
+  }
+
+  // arrow function class field instead of a regular method - this was
+  // being handed out bare (here to pieceManager.setDispatch, and from
+  // torrent.ts to PeerManager) and a regular method loses its `this`
+  // when called that way, so `this.eventQueue.push` would crash. An
+  // arrow field keeps `this` bound to the instance no matter how it's
+  // passed around.
+  public dispatch = (event: SchedulerEvent) => {
+    this.eventQueue.push(event);
+  };
+
+  // reduce Scheduler events to corresponding actions
+  private async schedulerEventTransition(event: SchedulerEvent) {
+    switch (event.type) {
+      case "PEER_CONNECTED": {
+        //
+        this.peers.add(event.peer);
+        this.schedule();
+        return;
+      }
+      case "UNCHOKE": {
+        this.schedule();
+        return;
+      }
+      case "BITFIELD": {
+        this.schedule();
+        return;
+      }
+      case "HAVE": {
+        // SchedulerEvent includes "HAVE" and Peer.handleEvent genuinely
+        // dispatches it every time a peer announces a new piece - without
+        // this case it fell into `default` and threw, crashing the whole
+        // event loop the first time any peer sent a HAVE message
+        this.schedule();
+        return;
+      }
+      case "BLOCK_RECEIVED": {
+        const key = `${event.piece.pieceIdx},${event.piece.offset}`;
+        // remove from outstanding requests
+        this.requestedBlocks.delete(key);
+        this.schedule();
+        return;
+      }
+      case "CHOKE": {
+        return;
+      }
+      case "DISCONNECT": {
+        const disconnectedPeer = event.peer;
+        this.peers.delete(disconnectedPeer);
+
+        const toDelete = [];
+        for (const [block, peer] of this.requestedBlocks.entries()) {
+          if (peer === disconnectedPeer) toDelete.push(block);
+        }
+
+        for (const block of toDelete) this.requestedBlocks.delete(block);
+        this.schedule();
+        return;
+      }
+      default:
+        throw new Error("Invalid dispatch to Scheduler");
+    }
+  }
+
+  // schedule a single request to a peer after finding a legal pair returns success
   scheduleOne(): boolean {
     for (const peer of this.peers) {
       if (peer.isOverloaded || peer.isPeerChoking) continue;
@@ -39,9 +115,9 @@ export class Scheduler {
         if (neededBlocks.length === 0) continue;
 
         for (const { pieceIdx, offset, length } of neededBlocks) {
-          if (this.scheduledBlocks.has(`${pieceIdx},${offset}`)) continue;
+          if (this.requestedBlocks.has(`${pieceIdx},${offset}`)) continue;
 
-          this.scheduledBlocks.set(`${pieceIdx},${offset}`, peer);
+          this.requestedBlocks.set(`${pieceIdx},${offset}`, peer);
           peer.request({ pieceIdx, offset, length });
           return true;
         }
@@ -50,14 +126,11 @@ export class Scheduler {
     return false;
   }
 
-  schedule() {}
-
-  onReleaseBlock({ pieceIdx, offset }: Piece) {
-    this.release(`${pieceIdx},${offset}`);
-    this.schedule();
+  schedule() {
+    while (this.scheduleOne()) {}
   }
 
   release(block: string) {
-    this.scheduledBlocks.delete(block);
+    this.requestedBlocks.delete(block);
   }
 }

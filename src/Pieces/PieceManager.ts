@@ -3,6 +3,7 @@ import type { TorrentMetadata } from "../types/parserTypes";
 import type { BlockRequest, Piece } from "../types/peerTypes";
 import { createHash } from "crypto";
 import type { StorageManager } from "../fileAssembly/StorageManager";
+import type { SchedulerDispatchCallback } from "../types/schedulerTypes";
 
 export class PieceManager {
   private totalLength: number;
@@ -11,11 +12,11 @@ export class PieceManager {
   private blocks: Map<string, Buffer> = new Map<string, Buffer>();
   private hashes: Uint8Array;
   private verifiedPieces: Set<number> = new Set<number>();
+  private SchedulerDispatch!: SchedulerDispatchCallback;
 
   public constructor(
     { pieceHashes, pieceLength, ...meta }: TorrentMetadata,
     private storageManager: StorageManager,
-    private notifyScheduler: (blockKey: string) => void,
   ) {
     this.pieceLength = pieceLength;
     this.hashes = pieceHashes;
@@ -28,6 +29,10 @@ export class PieceManager {
         0,
       );
     }
+  }
+
+  public setDispatch(dispatch: SchedulerDispatchCallback) {
+    this.SchedulerDispatch = dispatch;
   }
 
   get pieceCount(): number {
@@ -85,12 +90,11 @@ export class PieceManager {
       return;
     }
 
-    if (!this.verifiedPieces.has(pieceIdx)) return;
+    if (this.verifiedPieces.has(pieceIdx)) return;
 
     const blockKey = `${pieceIdx},${offset}`;
     this.blocks.set(blockKey, block);
-    this.notifyScheduler(piece);
-    // tell scheduler to remove it from the place
+    this.SchedulerDispatch({ type: "BLOCK_RECEIVED", piece });
 
     if (this.isCompletePiece(pieceIdx)) {
       const assembled = this.assemblePiece(pieceIdx);
@@ -103,6 +107,9 @@ export class PieceManager {
       ) {
         await this.storageManager.writePiece(pieceIdx, assembled);
         this.verifiedPieces.add(pieceIdx);
+        console.log(
+          `Progress: ${this.verifiedPieces.size}/${this.pieceCount} pieces`,
+        );
       }
     }
   }
@@ -133,7 +140,9 @@ export class PieceManager {
   }
 
   private verifyPiece(downloadedPiece: Buffer, actualHash: Buffer): boolean {
+    const start = performance.now();
     const pieceHash = createHash("sha1").update(downloadedPiece).digest();
+    console.log(`piece hash: ${(performance.now() - start).toFixed(2)} ms`);
     return actualHash.equals(pieceHash);
   }
 
@@ -144,7 +153,7 @@ export class PieceManager {
 
     for (let i = 0; i < numBlocks; i++) {
       const blockSize = this.getBlockLength(pieceIdx, i * BLOCK_SIZE);
-      const key = `${pieceIdx},${blockSize}`;
+      const key = `${pieceIdx},${i * BLOCK_SIZE}`;
       if (!this.blocks.has(key))
         neededBlocks.push({
           pieceIdx,

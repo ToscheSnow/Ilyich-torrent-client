@@ -1,4 +1,7 @@
-export function handshake(infoHash: Uint8Array, peerId: Uint8Array): Buffer {
+export function handshakeBuf(
+  infoHash: Uint8Array,
+  CLIENT_ID: Uint8Array,
+): Buffer {
   // bittorrent handshake is fixed size 68 bytes
   const buf = Buffer.alloc(68);
 
@@ -16,7 +19,7 @@ export function handshake(infoHash: Uint8Array, peerId: Uint8Array): Buffer {
   buf.set(infoHash, 28);
 
   //20 bytes for the CLIENT_ID
-  buf.set(peerId, 48);
+  buf.set(CLIENT_ID, 48);
 
   return buf;
 }

@@ -1,6 +1,21 @@
 export function verifyHandshake(sent: Buffer, received: Buffer) {
-  const isSuccessful = sent.subarray(0, 48).equals(received.subarray(0, 48));
+  if (received.length < 68) {
+    return {
+      isSuccessful: false,
+      remotePeerId: null,
+    };
+  }
+
+  const protocolOK = received.subarray(0, 20).equals(sent.subarray(0, 20));
+
+  const infoHashOK = received.subarray(28, 48).equals(sent.subarray(28, 48));
+
+  const isSuccessful = protocolOK && infoHashOK;
+
   const remotePeerId = Buffer.from(received.subarray(48, 68));
 
-  return { isSuccessful, remotePeerId };
+  return {
+    isSuccessful,
+    remotePeerId,
+  };
 }

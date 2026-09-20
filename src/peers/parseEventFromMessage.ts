@@ -27,7 +27,7 @@ export function parseEventFromMessage(message: Buffer): PeerEvent {
       return {
         type: "REQUEST",
         block: {
-          piece: message.readUInt32BE(1),
+          pieceIdx: message.readUInt32BE(1),
           offset: message.readUInt32BE(5),
           length: message.readUInt32BE(9),
         },
@@ -50,7 +50,8 @@ export function parseEventFromMessage(message: Buffer): PeerEvent {
       return {
         type: "CANCEL",
         block: {
-          piece: message.readUInt32BE(1),
+          // same fix as REQUEST above
+          pieceIdx: message.readUInt32BE(1),
           offset: message.readUInt32BE(5),
           length: message.readUInt32BE(9),
         },
