@@ -23,8 +23,6 @@ export class AsyncMessageQueue<T> {
   }
 
   push(item: T): void {
-    // same idea for waiters - shift() instead of a head pointer, so
-    // resolved waiters don't sit in the array forever
     const waiter = this.waiters.shift();
 
     if (waiter) {

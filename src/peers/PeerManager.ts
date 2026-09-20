@@ -18,9 +18,9 @@ export class PeerManager {
 
   constructor(
     private activePeers: Set<Peer>,
-    private peerAddresses: Set<PeerAddress>,
+    // private peerAddresses: Set<PeerAddress>,
     private infoHash: Buffer,
-    private maxConnecting = 10,
+    // private maxConnecting = 10,
     private schedulerDispatch: SchedulerDispatchCallback,
     private pieceHandler: (piece: Piece) => Promise<void>,
   ) {}
@@ -61,9 +61,6 @@ export class PeerManager {
       const message = buf.subarray(0, 68);
       buf = buf.subarray(68);
 
-      // verifyHandshake returns { isSuccessful, remotePeerId } - it's an
-      // object, not a boolean, so `!verifyHandshake(...)` was always false
-      // and no handshake was ever actually rejected. Destructure the flag.
       const { isSuccessful } = verifyHandshake(torrentHandshake, message);
 
       if (!isSuccessful) {
@@ -87,22 +84,19 @@ export class PeerManager {
 
       this.activePeers.add(peer);
 
-      console.log("📤 Sending INTERESTED");
       peer.startAfterHandshake(buf);
     };
 
     socket.on("connect", () => {
       console.log(`TCP connected to ${peerKey}, sending handshake`);
 
-      console.log(torrentHandshake.length);
-      console.log(torrentHandshake.toString("hex"));
       socket.write(torrentHandshake);
     });
 
     socket.on("data", onHandshake);
 
     socket.on("error", (err) => {
-      console.log(`❌ Connection error with ${peerKey}:`, err.message);
+      console.log(`❌😂 Connection error with ${peerKey}:`, err.message);
       this.connectingPeers.delete(peerKey);
     });
 
@@ -117,6 +111,10 @@ export class PeerManager {
 
   public get activePeer(): Set<Peer> {
     return this.activePeers;
+  }
+
+  public get activePeerCount(): number {
+    return this.activePeer.size;
   }
 }
 

@@ -12,9 +12,6 @@ export class StorageManager {
     meta: TorrentMetadata,
     private dirPath: string,
   ) {
-    // needed to compute each piece's real byte offset in writePiece -
-    // BLOCK_SIZE (16KB, fixed) is NOT the same thing as a torrent's
-    // piece length (commonly 256KB-4MB and varies per torrent)
     this.pieceLength = meta.pieceLength;
 
     //single file
@@ -112,22 +109,13 @@ export class StorageManager {
         pieceEnd,
       );
       //write to file
-      console.log("pathArr =", pathArr);
-      console.log(
-        "pathArr types =",
-        pathArr.map((x) => typeof x),
-      );
 
       const filePath = path.join(
         this.dirPath,
         ...pathArr.map((part) => Buffer.from(part).toString("utf8")),
       );
 
-      console.log("filePath:", filePath);
-      console.log("known file handles:", [...this.fileHandles.keys()]);
       const fileHandle = this.fileHandles.get(filePath)!;
-
-      const startTime = performance.now();
 
       await fileHandle.write(
         pieceBuf,
@@ -136,8 +124,6 @@ export class StorageManager {
         pieceOffset + start - startOffset,
       );
       //
-
-      console.log(`disk write: ${(performance.now() - start).toFixed(2)} ms`);
     }
   }
 

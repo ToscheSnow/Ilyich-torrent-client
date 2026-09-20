@@ -17,6 +17,8 @@ export class PieceManager {
   public constructor(
     { pieceHashes, pieceLength, ...meta }: TorrentMetadata,
     private storageManager: StorageManager,
+    private pieceStatIncrement: () => void,
+    private bytesDownloadedIncrement: (downloadedBytes: number) => void,
   ) {
     this.pieceLength = pieceLength;
     this.hashes = pieceHashes;
@@ -107,9 +109,8 @@ export class PieceManager {
       ) {
         await this.storageManager.writePiece(pieceIdx, assembled);
         this.verifiedPieces.add(pieceIdx);
-        console.log(
-          `Progress: ${this.verifiedPieces.size}/${this.pieceCount} pieces`,
-        );
+        this.pieceStatIncrement();
+        this.bytesDownloadedIncrement(assembled.length);
       }
     }
   }
@@ -140,9 +141,8 @@ export class PieceManager {
   }
 
   private verifyPiece(downloadedPiece: Buffer, actualHash: Buffer): boolean {
-    const start = performance.now();
     const pieceHash = createHash("sha1").update(downloadedPiece).digest();
-    console.log(`piece hash: ${(performance.now() - start).toFixed(2)} ms`);
+
     return actualHash.equals(pieceHash);
   }
 

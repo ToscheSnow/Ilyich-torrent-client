@@ -59,9 +59,17 @@ export function parseEventFromMessage(message: Buffer): PeerEvent {
 
     //no idea what port does 🥺
     case 9:
+      if (message.length !== 3) {
+        throw new Error("Invalid PORT message");
+      }
+
       return {
         type: "PORT",
-        //dont know what port even does 😂
+      };
+    case 20:
+      console.log("Ignoring extended message");
+      return {
+        type: "EXTENDED",
       };
 
     default:

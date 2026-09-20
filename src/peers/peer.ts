@@ -13,12 +13,13 @@ import type { SchedulerDispatchCallback } from "../types/schedulerTypes";
 import { parseEventFromMessage } from "./parseEventFromMessage";
 
 export const defaultPeerState: PeerState = {
+  // 😰 i am choking them
   amChoking: true,
 
   // i want something
   amInterested: false,
 
-  // i can not receive
+  // i can not receive 😢
   peerChoking: true,
 
   // they want something
@@ -89,6 +90,7 @@ export class Peer {
         // Decode event.field and update this.availablePieces
         availablePieces(event.field, this.availablePieces);
         this.schedulerDispatch({ type: "BITFIELD", peer: this });
+
         console.log(`Peer has ${this.availablePieces.size} pieces available`);
         return;
 
@@ -120,15 +122,6 @@ export class Peer {
           throw new Error("Received piece with incorrect length");
         }
 
-        // pieceHandler (PieceManager.receiveBlock) already dispatches
-        // BLOCK_RECEIVED to the scheduler itself once it's validated the
-        // block - dispatching it again here unconditionally was redundant
-        // and could fire even for blocks PieceManager rejected.
-
-        console.log(
-          `Got block piece=${event.piece.pieceIdx} offset=${event.piece.offset} len=${event.piece.block.length}`,
-        );
-
         await this.pieceHandler(event.piece);
         this.pendingRequests.delete(pieceKey);
 
@@ -136,6 +129,10 @@ export class Peer {
 
       case "PORT":
         return;
+      case "EXTENDED":
+        console.log("Ignore extended req 😂");
+        return;
+
       default:
         throw new Error("Invalid call to peer event handler");
     }
@@ -210,11 +207,6 @@ export class Peer {
     while (true) {
       const req = await this.reqQueue.pop();
 
-      console.log(
-        `📤 SEND ${this.socket.remoteAddress}:${this.socket.remotePort}:`,
-        req.toString("hex"),
-      );
-
       this.socket.write(req);
     }
   }
@@ -251,7 +243,7 @@ export class Peer {
     this.onData(data);
   }
 
-  public onData = async (chunk: Buffer) => {
+  public onData = (chunk: Buffer) => {
     this.buf = Buffer.concat([this.buf, chunk]);
 
     while (true) {
@@ -270,6 +262,7 @@ export class Peer {
       }
 
       const message = this.buf.subarray(4, 4 + messageLen);
+
       this.buf = this.buf.subarray(4 + messageLen);
       this.incomingQueue.push(message);
     }

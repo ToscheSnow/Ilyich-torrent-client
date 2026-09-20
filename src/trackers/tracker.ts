@@ -30,16 +30,14 @@ export class Tracker {
   }
 
   private getHttpTrackers(decodedTorrent: BencodeDict): string[] {
-    // use a Set so a URL appearing in both announce-list and announce
-    // doesn't get announced to twice
+    // use a Set so a urls appearing in both announce-list and announce
+    // doesn't get announced to twice😂
     const httpUrls = new Set<string>();
     const decoder = new TextDecoder();
     let udp = 0;
     let http = 0;
 
     // announce-list is OPTIONAL per BEP 12 - plenty of real .torrent files
-    // (especially single-tracker ones) only have "announce". Without this
-    // guard, `for (const tier of announcers)` throws on those files.
     const announcers = decodedTorrent["announce-list"] as
       | Uint8Array[][]
       | undefined;
@@ -61,7 +59,6 @@ export class Tracker {
     console.log("UDP trackers found", udp);
 
     // "announce" is required by the original spec but guard anyway in case
-    // a torrent only carries announce-list
     const announceBytes = decodedTorrent["announce"] as Uint8Array | undefined;
 
     if (announceBytes) {
@@ -115,15 +112,13 @@ export class Tracker {
 
     const response = await fetch(url);
 
-    console.log("URL:", url);
-    console.log("status:", response.status);
-    console.log("content-type:", response.headers.get("content-type"));
+    console.log(`URL ${url} Status: ${response.status}`);
 
     if (!response.ok) {
       const body = await response.text();
 
       throw new Error(
-        `Tracker responded with HTTP ${response.status}: ${body.slice(0, 200)}`,
+        `Tracker responded with HTTP ${response.status}: ${body.slice(0, 50)}`,
       );
     }
 
@@ -140,9 +135,6 @@ export class Tracker {
     const decoder = new ByteParser(responseBytes);
     const decoded = decoder.parse() as BencodeDict;
 
-    console.log("interval:", decoded["interval"]);
-    console.log("peers:", decoded["peers"]);
-
     if ("failure reason" in decoded) {
       throw new Error(String(decoded["failure reason"]));
     }
@@ -155,11 +147,12 @@ export class Tracker {
 
     const peers = decoded["peers"];
 
-    // Trackers are supposed to honor `compact=1` and return `peers` as a
-    // single byte string - but plenty don't (see testResponse.txt from
-    // earlier), and even the ones that do often bencode an EMPTY swarm as
-    // an empty list (`le`) rather than an empty byte string (`0:`). Handle
-    // both shapes instead of assuming compact is always respected.
+    // trackers are supposed to honour compact=1 and return peers as a
+    // single byte string - but some dont, they often bencode an EMPTY swarm as
+
+    //
+    // an empty list  rather than an empty byte string . Handle
+    // both shapes instead of assuming
     let parsedPeers: PeerAddress[];
 
     if (peers instanceof Uint8Array) {

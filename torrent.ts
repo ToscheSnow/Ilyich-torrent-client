@@ -14,6 +14,8 @@ import type { Peer } from "./src/peers/peer";
 
 import { CLIENT_ID_BYTES } from "./client";
 import { Tracker } from "./src/trackers/tracker";
+import { DownloadStats } from "./src/utils/DownloadStats";
+import { StatsReporter } from "./src/utils/StatsReporter";
 
 export class Torrent {
   private readonly activePeers: Set<Peer> = new Set();
@@ -23,6 +25,7 @@ export class Torrent {
   private readonly scheduler: Scheduler;
   private readonly peerManager: PeerManager;
   private readonly tracker: Tracker;
+  private stats: StatsReporter;
 
   private readonly meta;
   private readonly infoHash;
@@ -39,17 +42,27 @@ export class Torrent {
     this.meta = infoDict(decodedTorrent);
     this.infoHash = Buffer.from(this.meta.infoHash);
 
+    this.stats = new StatsReporter(
+      new DownloadStats(() => this.activePeers.size),
+      this.meta.pieceHashes.length / 20,
+    );
+
     this.storageManager = new StorageManager(this.meta, this.downloadDir);
 
-    this.pieceManager = new PieceManager(this.meta, this.storageManager);
+    this.pieceManager = new PieceManager(
+      this.meta,
+      this.storageManager,
+      this.stats.getPieceIncrement,
+      this.stats.getByteIncrement,
+    );
 
     this.scheduler = new Scheduler(this.pieceManager, this.activePeers);
 
     this.peerManager = new PeerManager(
       this.activePeers,
-      new Set<PeerAddress>(),
+      // new Set<PeerAddress>(),
       this.infoHash,
-      10,
+      // 10,
       this.scheduler.dispatch.bind(this.scheduler),
       this.pieceManager.receiveBlock.bind(this.pieceManager),
     );
@@ -65,6 +78,8 @@ export class Torrent {
     console.log("Storage initialised");
 
     await this.announce();
+
+    this.stats.start();
   }
 
   private async announce() {

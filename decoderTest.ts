@@ -7,7 +7,6 @@ const decoder = new TextDecoder();
 
 const res = parser.parse();
 
-console.log(res);
 
 function toJsonSafe(value: unknown, key?: string): unknown {
   if (value instanceof Uint8Array) {

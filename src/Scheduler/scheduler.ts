@@ -15,6 +15,7 @@ import type { SchedulerEvent } from "../types/schedulerTypes";
 
 export class Scheduler {
   // outstanding request blocks and corresponding peers
+  //
   // every block is requested by a unique peer
   private requestedBlocks: Map<string, Peer> = new Map<string, Peer>();
 
@@ -39,12 +40,6 @@ export class Scheduler {
     }
   }
 
-  // arrow function class field instead of a regular method - this was
-  // being handed out bare (here to pieceManager.setDispatch, and from
-  // torrent.ts to PeerManager) and a regular method loses its `this`
-  // when called that way, so `this.eventQueue.push` would crash. An
-  // arrow field keeps `this` bound to the instance no matter how it's
-  // passed around.
   public dispatch = (event: SchedulerEvent) => {
     this.eventQueue.push(event);
   };
@@ -67,10 +62,6 @@ export class Scheduler {
         return;
       }
       case "HAVE": {
-        // SchedulerEvent includes "HAVE" and Peer.handleEvent genuinely
-        // dispatches it every time a peer announces a new piece - without
-        // this case it fell into `default` and threw, crashing the whole
-        // event loop the first time any peer sent a HAVE message
         this.schedule();
         return;
       }
