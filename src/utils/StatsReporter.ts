@@ -5,9 +5,11 @@ export class StatsReporter {
 
   private lastBytes = 0;
   private lastTime = performance.now();
+  private timeRemaining = Infinity;
   constructor(
     private downloadStats: DownloadStats,
     private totalPieces: number,
+    private pieceLength: number,
   ) {}
 
   report() {
@@ -26,10 +28,17 @@ export class StatsReporter {
 
     const downloadedPieces = this.downloadStats.getCompletedPieces();
     const pieceProgress = (downloadedPieces / this.totalPieces) * 100;
+    let remainingTIme =
+      ((this.totalPieces - downloadedPieces) * this.pieceLength) /
+      (mbps * 1024 * 1024);
+
+    if (remainingTIme === Infinity) remainingTIme = this.timeRemaining;
 
     console.log(
-      `Speed ${(mbps * 8).toFixed(2)}Mbps/s | Progress ${downloadedPieces}/${this.totalPieces} downloaded | ${pieceProgress.toFixed(2)}%  |  Connected Peers ${this.downloadStats.peers}`,
+      `Speed ${(mbps * 8).toFixed(2)}Mbps/s | Progress ${downloadedPieces}/${this.totalPieces} downloaded | ${pieceProgress.toFixed(2)}%  |  Connected ${this.downloadStats.peers} | remainingTIme:${remainingTIme.toFixed(0)}`,
     );
+
+    this.timeRemaining = remainingTIme;
   }
 
   start() {
@@ -37,7 +46,7 @@ export class StatsReporter {
 
     this.timer = setInterval(() => {
       this.report();
-    }, 2000);
+    }, 5000);
   }
 
   stop() {

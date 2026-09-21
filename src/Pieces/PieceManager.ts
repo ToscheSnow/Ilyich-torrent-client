@@ -13,6 +13,7 @@ export class PieceManager {
   private hashes: Uint8Array;
   private verifiedPieces: Set<number> = new Set<number>();
   private SchedulerDispatch!: SchedulerDispatchCallback;
+  private numPieces: number;
 
   public constructor(
     { pieceHashes, pieceLength, ...meta }: TorrentMetadata,
@@ -31,7 +32,28 @@ export class PieceManager {
         0,
       );
     }
+
+    this.numPieces = Math.ceil(this.totalLength / pieceLength);
   }
+
+  //no async factory required i realised since torrent class initialises storage manager explicitly
+
+  // public static async create(
+  //   { pieceHashes, pieceLength, ...meta }: TorrentMetadata,
+  //   storageManager: StorageManager,
+  //   pieceStatIncrement: () => void,
+  //   bytesDownloadedIncrement: (downloadedBytes: number) => void,
+  // ): Promise<PieceManager> {
+  //   const pieceManager = new PieceManager(
+  //     { pieceHashes, pieceLength, ...meta },
+  //     storageManager,
+  //     pieceStatIncrement,
+  //     bytesDownloadedIncrement,
+  //   );
+
+  //   await pieceManager.initAvailablePieces();
+  //   return pieceManager;
+  // }
 
   public setDispatch(dispatch: SchedulerDispatchCallback) {
     this.SchedulerDispatch = dispatch;
@@ -162,5 +184,53 @@ export class PieceManager {
         });
     }
     return neededBlocks;
+  }
+
+  public async initAvailablePieces() {
+    //benchmark
+
+    const CONCURRENT_READS = 32;
+
+    // worker function to check and verify written pieces
+    const readAndVerifyPiece = async (pieceIdx: number) => {
+      const pieceLen = this.getPieceLength(pieceIdx);
+      const pieceBuf: Buffer = await this.storageManager.readPiece(
+        pieceIdx,
+        this.getPieceLength(pieceIdx),
+      );
+
+      if (
+        this.verifyPiece(
+          pieceBuf,
+          Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20)),
+        )
+      ) {
+        this.verifiedPieces.add(pieceIdx);
+        this.pieceStatIncrement();
+        this.bytesDownloadedIncrement(pieceLen);
+      }
+    };
+
+    const startTime = performance.now();
+
+    for (
+      let batchStart = 0;
+      batchStart < this.numPieces;
+      batchStart += CONCURRENT_READS
+    ) {
+      const end = Math.min(batchStart + CONCURRENT_READS, this.numPieces);
+
+      // of the form [0,CONCURRENT_READS)
+      const batch = Array.from(
+        { length: end - batchStart },
+        (_, i) => batchStart + i,
+      );
+
+      await Promise.all(batch.map(readAndVerifyPiece));
+    }
+
+    const end = performance.now();
+    console.log(`${(end - startTime).toFixed(2)} ms`);
+    console.log(`Found ${this.verifiedPieces.size} already on disk`);
   }
 }

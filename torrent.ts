@@ -9,7 +9,7 @@ import type { BencodeDict } from "./src/types/parserTypes";
 import { StorageManager } from "./src/fileAssembly/StorageManager";
 import { PieceManager } from "./src/Pieces/PieceManager";
 import { Scheduler } from "./src/Scheduler/scheduler";
-import { PeerManager, type PeerAddress } from "./src/peers/PeerManager";
+import { PeerManager } from "./src/peers/PeerManager";
 import type { Peer } from "./src/peers/peer";
 
 import { CLIENT_ID_BYTES } from "./client";
@@ -45,6 +45,7 @@ export class Torrent {
     this.stats = new StatsReporter(
       new DownloadStats(() => this.activePeers.size),
       this.meta.pieceHashes.length / 20,
+      this.meta.pieceLength,
     );
 
     this.storageManager = new StorageManager(this.meta, this.downloadDir);
@@ -74,8 +75,10 @@ export class Torrent {
     console.log("Starting torrent");
 
     await this.storageManager.initFileHandles();
-
     console.log("Storage initialised");
+
+    await this.pieceManager.initAvailablePieces();
+    console.log("Available Pieces verified");
 
     await this.announce();
 

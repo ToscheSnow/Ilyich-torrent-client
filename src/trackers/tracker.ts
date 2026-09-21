@@ -112,6 +112,7 @@ export class Tracker {
 
     const response = await fetch(url);
 
+    
     console.log(`URL ${url} Status: ${response.status}`);
 
     if (!response.ok) {

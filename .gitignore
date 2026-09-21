@@ -1,5 +1,6 @@
 # dependencies (bun install)
 node_modules
+download
 
 # output
 out
@@ -34,3 +35,4 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .DS_Store
 *.iso
 *.iso
+*.torrent

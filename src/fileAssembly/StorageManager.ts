@@ -39,14 +39,6 @@ export class StorageManager {
     }
   }
 
-  static async create(meta: TorrentMetadata, dirPath: string) {
-    const manager = new StorageManager(meta, dirPath);
-
-    await manager.initFileHandles();
-
-    return manager;
-  }
-
   async close() {
     for (const fileHandle of this.fileHandles.values()) {
       await fileHandle.close();
@@ -67,13 +59,16 @@ export class StorageManager {
       let fileHandle;
 
       try {
+        // file exits change contents
         fileHandle = await open(filePath, "r+");
-      } catch (err) {
-        // file doesn't exist → create it
+      } catch (err: any) {
+        if (err.code !== "ENOENT") throw err;
+
+        // no file => create it
         fileHandle = await open(filePath, "w+");
+        await fileHandle.truncate(length);
       }
 
-      await fileHandle.truncate(length);
       console.log("OPENED FILE:", filePath);
       this.fileHandles.set(filePath, fileHandle);
 
@@ -125,6 +120,74 @@ export class StorageManager {
       );
       //
     }
+  }
+
+  async readPiece(pieceIdx: number, pieceLength: number): Promise<Buffer> {
+    // piece
+    // 100 250
+
+    //file x 20 100
+    // file a 80 150
+    //file b 150 200
+    // file c 200 250
+    // file d 250 900
+
+    const buf = Buffer.alloc(pieceLength);
+
+    // coordinates of the piece in global torrent bytes
+    const pieceOffset = pieceIdx * this.pieceLength;
+    const pieceEnd = pieceOffset + pieceLength;
+
+    // half open intervals [ ) for files and torrents
+    for (const {
+      startOffset: fileOffset,
+      path: pathArr,
+      length: fileLen,
+    } of this.files) {
+      // piece comes after the file
+      if (pieceOffset >= fileOffset + fileLen) continue;
+      // piece comes before the file
+      if (pieceEnd <= fileOffset) continue;
+
+      // this file is a part of the piece
+      const [start, end] = this.intervalIntersection(
+        pieceOffset,
+        pieceEnd,
+        fileOffset,
+        fileOffset + fileLen,
+      )!;
+
+      // with reference to the buffer
+      const bufOffset = start - pieceOffset;
+      const bufEnd = end - pieceOffset;
+
+      const filePath = path.join(
+        this.dirPath,
+        ...pathArr.map((part) => Buffer.from(part).toString("utf8")),
+      );
+
+      const fileHandle = this.fileHandles.get(filePath)!;
+
+      await fileHandle.read(
+        buf,
+        bufOffset,
+        // with reference to the file
+        bufEnd - bufOffset,
+        start - fileOffset,
+      );
+    }
+    return buf;
+  }
+
+  
+
+  intervalIntersection(
+    pieceStart: number,
+    pieceEnd: number,
+    fileStart: number,
+    fileEnd: number,
+  ): [number, number] {
+    return [Math.max(fileStart, pieceStart), Math.min(fileEnd, pieceEnd)];
   }
 
   findBufferOffset(
