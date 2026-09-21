@@ -27,6 +27,7 @@ export class Scheduler {
   constructor(
     private pieceManager: PieceManager,
     private peers: Set<Peer>,
+    private downloadFinishTrigger: () => void,
   ) {
     pieceManager.setDispatch(this.dispatch);
 
@@ -53,6 +54,11 @@ export class Scheduler {
         this.schedule();
         return;
       }
+      case "DOWNLOAD_COMPLETED": {
+        this.requestedBlocks.clear();
+        this.downloadFinishTrigger();
+        return;
+      }
       case "UNCHOKE": {
         this.schedule();
         return;
@@ -73,6 +79,15 @@ export class Scheduler {
         return;
       }
       case "CHOKE": {
+        const chokingPeer = event.peer;
+
+        const toRelease = [];
+        for (const [block, peer] of this.requestedBlocks.entries()) {
+          if (peer === chokingPeer) toRelease.push(block);
+        }
+
+        for (const block of toRelease) this.requestedBlocks.delete(block);
+        this.schedule();
         return;
       }
       case "DISCONNECT": {

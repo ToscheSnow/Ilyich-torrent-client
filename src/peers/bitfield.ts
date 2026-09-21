@@ -13,3 +13,19 @@ export function availablePieces(
     }
   }
 }
+
+export function BITFIELD_BUF(
+  verifiedPieces: ReadonlySet<number>,
+  pieceCount: number,
+): Buffer {
+  const bitfield = Buffer.alloc(Math.ceil(pieceCount / 8));
+
+  for (const pieceIdx of verifiedPieces) {
+    const byteIdx = Math.floor(pieceIdx / 8);
+    const bitIdx = pieceIdx % 8;
+
+    bitfield[byteIdx] = (bitfield[byteIdx] ?? 0) | (1 << (7 - bitIdx));
+  }
+
+  return bitfield;
+}

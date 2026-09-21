@@ -2,7 +2,8 @@
   "name": "bunnyhunt",
   "private": true,
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "oxlint": "^1.83.0"
   },
   "peerDependencies": {
     "typescript": "^7.0.2"

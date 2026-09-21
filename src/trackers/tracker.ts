@@ -81,18 +81,37 @@ export class Tracker {
   }
 
   public async announce(args: TrackerAnnounceArgs): Promise<TrackerResponse[]> {
+    // send requests to tracker at the same time
+
+    // const responses: TrackerResponse[] = [];
+
+    // for (const url of this.urls) {
+    //   try {
+    //     const response = await this.announceTracker(url, args);
+    //     responses.push(response);
+    //   } catch (error) {
+    //     const message = error instanceof Error ? error.message : String(error);
+
+    //     console.error(`Tracker failed: ${url} — ${message}`);
+    //   }
+    // }
+
+    // return responses;
+
     const responses: TrackerResponse[] = [];
 
-    for (const url of this.urls) {
+    const fetchSingleReq = async (url: string, args: TrackerAnnounceArgs) => {
       try {
         const response = await this.announceTracker(url, args);
         responses.push(response);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
 
-        console.error(`Tracker failed: ${url} — ${message}`);
+        console.error(`Tracker failed :${url} - ${message}`);
       }
-    }
+    };
+
+    await Promise.all(this.urls.map((url) => fetchSingleReq(url, args)));
 
     return responses;
   }
@@ -112,26 +131,17 @@ export class Tracker {
 
     const response = await fetch(url);
 
-    
     console.log(`URL ${url} Status: ${response.status}`);
 
     if (!response.ok) {
       const body = await response.text();
 
       throw new Error(
-        `Tracker responded with HTTP ${response.status}: ${body.slice(0, 50)}`,
+        `Tracker responded with HTTP ${response.status}: ${body.slice(0, 25)}`,
       );
     }
 
     const responseBytes = Buffer.from(await response.arrayBuffer());
-
-    console.log("response length:", responseBytes.length);
-    console.log(
-      "first bytes:",
-      [...responseBytes.slice(0, 30)]
-        .map((x) => `0x${x.toString(16).padStart(2, "0")}`)
-        .join(" "),
-    );
 
     const decoder = new ByteParser(responseBytes);
     const decoded = decoder.parse() as BencodeDict;

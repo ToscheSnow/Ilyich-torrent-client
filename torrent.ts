@@ -25,11 +25,12 @@ export class Torrent {
   private readonly scheduler: Scheduler;
   private readonly peerManager: PeerManager;
   private readonly tracker: Tracker;
-  private stats: StatsReporter;
+  private statsReporter: StatsReporter;
 
   private readonly meta;
   private readonly infoHash;
   private readonly peerId = CLIENT_ID_BYTES;
+  public totalBytes = 0;
 
   constructor(
     private readonly torrentPath: string,
@@ -42,7 +43,9 @@ export class Torrent {
     this.meta = infoDict(decodedTorrent);
     this.infoHash = Buffer.from(this.meta.infoHash);
 
-    this.stats = new StatsReporter(
+    this.totalBytes = this.getTotalBytes();
+
+    this.statsReporter = new StatsReporter(
       new DownloadStats(() => this.activePeers.size),
       this.meta.pieceHashes.length / 20,
       this.meta.pieceLength,
@@ -53,11 +56,15 @@ export class Torrent {
     this.pieceManager = new PieceManager(
       this.meta,
       this.storageManager,
-      this.stats.getPieceIncrement,
-      this.stats.getByteIncrement,
+      this.statsReporter.getPieceIncrement,
+      this.statsReporter.getByteIncrement,
     );
 
-    this.scheduler = new Scheduler(this.pieceManager, this.activePeers);
+    this.scheduler = new Scheduler(
+      this.pieceManager,
+      this.activePeers,
+      this.statsReporter.stop,
+    );
 
     this.peerManager = new PeerManager(
       this.activePeers,
@@ -66,6 +73,7 @@ export class Torrent {
       // 10,
       this.scheduler.dispatch.bind(this.scheduler),
       this.pieceManager.receiveBlock.bind(this.pieceManager),
+      this.pieceManager.getVerifiedPieces,
     );
 
     this.tracker = new Tracker(decodedTorrent);
@@ -77,12 +85,16 @@ export class Torrent {
     await this.storageManager.initFileHandles();
     console.log("Storage initialised");
 
-    await this.pieceManager.initAvailablePieces();
+    await this.pieceManager.verifyAvailablePieces();
     console.log("Available Pieces verified");
+
+    this.pieceManager.completeDownloadHandler();
 
     await this.announce();
 
-    this.stats.start();
+    this.statsReporter.start();
+
+    this.pieceManager.completeDownloadHandler();
   }
 
   private async announce() {
@@ -91,8 +103,8 @@ export class Torrent {
       peerId: this.peerId,
       port: 6881,
       uploaded: 0,
-      downloaded: 0,
-      left: this.getLeftBytes(),
+      downloaded: this.statsReporter.downloadedBytes, // should be what you have
+      left: this.totalBytes - this.statsReporter.downloadedBytes,
     });
 
     console.log("Sent req to tracker");
@@ -114,7 +126,7 @@ export class Torrent {
     }
   }
 
-  private getLeftBytes(): number {
+  private getTotalBytes(): number {
     if ("length" in this.meta) {
       return this.meta.length;
     }

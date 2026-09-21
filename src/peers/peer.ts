@@ -42,7 +42,7 @@ export class Peer {
     peerConfig: PeerState,
     private socket: Socket,
     private schedulerDispatch: SchedulerDispatchCallback,
-    private pieceHandler: (piece: Piece) => Promise<void>,
+    private pieceHandler: (piece: Piece, peer: Peer) => Promise<void>,
   ) {
     this.state = peerConfig;
 
@@ -66,15 +66,24 @@ export class Peer {
       case "CHOKE":
         this.state.peerChoking = true;
         this.schedulerDispatch({ type: "CHOKE", peer: this });
+        console.log("They choked us");
+
         return;
 
       case "UNCHOKE":
         this.state.peerChoking = false;
+        console.log("They unchoked us");
+
         this.schedulerDispatch({ type: "UNCHOKE", peer: this });
         return;
 
       case "INTERESTED":
+        console.log("(I) They are interested");
+
         this.state.peerInterested = true;
+        this.state.amChoking = false;
+        this.UNCHOKE_REQ();
+
         return;
 
       case "NOT-INTERESTED":
@@ -87,16 +96,20 @@ export class Peer {
         return;
 
       case "BITFIELD":
-        // Decode event.field and update this.availablePieces
         availablePieces(event.field, this.availablePieces);
+
+        console.log("(I) 📤 INTERESTED");
+        this.INTERESTED_REQ();
+
         this.schedulerDispatch({ type: "BITFIELD", peer: this });
-
-        console.log(`Peer has ${this.availablePieces.size} pieces available`);
         return;
-
       case "REQUEST":
+        console.log(
+          `🍒 incoming request: piece=${event.block.pieceIdx} offset=${event.block.offset} length=${event.block.length}`,
+        );
+
         if (this.state.amChoking) {
-          throw new Error("Peer requested while choked");
+          return;
         }
         // this is for them to send us a request we will send them the piece which is a buffer
         return;
@@ -115,14 +128,19 @@ export class Peer {
         const pendingReq = this.pendingRequests.get(pieceKey);
 
         if (!pendingReq) {
-          throw new Error("Received unexpected piece");
+          console.warn(
+            `⚠️ Received unexpected PIECE: piece=${event.piece.pieceIdx} offset=${event.piece.offset}`,
+          );
+          return;
         }
 
         if (pendingReq.request.length !== event.piece.block.length) {
           throw new Error("Received piece with incorrect length");
         }
 
-        await this.pieceHandler(event.piece);
+        // cl
+
+        await this.pieceHandler(event.piece, this);
         this.pendingRequests.delete(pieceKey);
 
         return;
@@ -179,6 +197,9 @@ export class Peer {
 
   public request(req: BlockRequest): void {
     //if not valid request throw
+    // console.log(
+    //   `📤 REQUEST piece=${req.pieceIdx} offset=${req.offset} length=${req.length}`,
+    // );
     const buf = this.REQUEST_BUFFER(req);
 
     this.pendingRequests.set(`${req.pieceIdx},${req.offset}`, {
@@ -196,7 +217,7 @@ export class Peer {
     this.reqQueue.push(buf);
   }
 
-  public interested(): void {
+  public INTERESTED_REQ(): void {
     const buf = Buffer.from([0x00, 0x00, 0x00, 0x01, 0x02]);
 
     this.state.amInterested = true;
@@ -207,13 +228,31 @@ export class Peer {
     while (true) {
       const req = await this.reqQueue.pop();
 
-      this.socket.write(req);
+      const ok = this.socket.write(req);
+
+      if (req[4] === 0x05) {
+        console.log("😇 SENT BITFIELD");
+      }
     }
   }
 
-  public startAfterHandshake(initialData: Buffer) {
+  public startAfterHandshake(initialData: Buffer, bitfield: Buffer) {
     this.receiveInitialData(initialData);
-    this.interested();
+    const req = this.sendBitfieldReq(bitfield);
+    this.reqQueue.push(req);
+    this.INTERESTED_REQ();
+  }
+
+  private sendBitfieldReq(bitfield: Buffer) {
+    const buf = Buffer.alloc(bitfield.length + 1 + 4);
+
+    buf.writeUInt32BE(bitfield.length + 1, 0);
+
+    buf[4] = 0x5;
+
+    buf.set(bitfield, 5);
+
+    return buf;
   }
 
   private async startIncomingLoop() {
@@ -263,8 +302,47 @@ export class Peer {
 
       const message = this.buf.subarray(4, 4 + messageLen);
 
+      // console.log(`📥 MESSAGE id=${message[0]} length=${messageLen}`);
+
       this.buf = this.buf.subarray(4 + messageLen);
       this.incomingQueue.push(message);
     }
   };
+
+  private UNCHOKE_BUF(): Buffer {
+    // UNCHOKE_REQ is of length 5 = 4+1 bytes with no paylod
+    const buf = Buffer.alloc(5);
+
+    // length afterwards is 1
+    buf.writeUInt32BE(1, 0);
+
+    // Unchoke message id is 1
+    buf[4] = 0x1;
+
+    return buf;
+  }
+
+  private UNCHOKE_REQ() {
+    console.log(`📤 UNCHOKE PEER `);
+    const unchokeBuf = this.UNCHOKE_BUF();
+
+    this.reqQueue.push(unchokeBuf);
+  }
+
+  private HAVE_BUF(pieceIdx: number): Buffer {
+    const buf = Buffer.alloc(9);
+
+    buf.writeUInt32BE(5, 0);
+    buf[4] = 0x4;
+    buf.writeUInt32BE(pieceIdx, 5);
+
+    return buf;
+  }
+
+  public HAVE_REQ(pieceIdx: number) {
+    const haveBuf = this.HAVE_BUF(pieceIdx);
+
+    // console.log(`😈 SENT Have req ${pieceIdx}`);
+    this.reqQueue.push(haveBuf);
+  }
 }

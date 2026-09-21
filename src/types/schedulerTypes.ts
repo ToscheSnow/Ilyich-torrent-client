@@ -10,4 +10,5 @@ export type SchedulerEvent =
   | { type: "HAVE"; peer: Peer }
   | { type: "BITFIELD"; peer: Peer }
   | { type: "BLOCK_RECEIVED"; piece: PieceInfo }
-  | { type: "DISCONNECT"; peer: Peer };
+  | { type: "DISCONNECT"; peer: Peer }
+  | { type: "DOWNLOAD_COMPLETED" };

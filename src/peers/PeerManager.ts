@@ -5,6 +5,7 @@ import { verifyHandshake } from "./verifyHandshake";
 import type { SchedulerDispatchCallback } from "../types/schedulerTypes";
 import type { PeerState, Piece } from "../types/peerTypes";
 import { Peer } from "./peer";
+import { BITFIELD_BUF } from "./bitfield";
 
 export type PeerAddress = {
   host: string;
@@ -22,7 +23,11 @@ export class PeerManager {
     private infoHash: Buffer,
     // private maxConnecting = 10,
     private schedulerDispatch: SchedulerDispatchCallback,
-    private pieceHandler: (piece: Piece) => Promise<void>,
+    private pieceHandler: (piece: Piece, peer: Peer) => Promise<void>,
+    private getVerifiedPieces: () => {
+      verifiedPieces: ReadonlySet<number>;
+      totalPieces: number;
+    },
   ) {}
 
   // will be called by TrackerManager
@@ -50,10 +55,6 @@ export class PeerManager {
     let buf = Buffer.alloc(0);
 
     const onHandshake = (data: Buffer) => {
-      console.log(
-        `📥 DATA ${peerKey}: ${data.length} bytes`,
-        data.toString("hex"),
-      );
       buf = Buffer.concat([buf, data]);
 
       if (buf.length < 68) return;
@@ -84,7 +85,9 @@ export class PeerManager {
 
       this.activePeers.add(peer);
 
-      peer.startAfterHandshake(buf);
+      const { verifiedPieces, totalPieces } = this.getVerifiedPieces();
+
+      peer.startAfterHandshake(buf, BITFIELD_BUF(verifiedPieces, totalPieces));
     };
 
     socket.on("connect", () => {

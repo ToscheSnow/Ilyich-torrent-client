@@ -4,6 +4,7 @@ import type { BlockRequest, Piece } from "../types/peerTypes";
 import { createHash } from "crypto";
 import type { StorageManager } from "../fileAssembly/StorageManager";
 import type { SchedulerDispatchCallback } from "../types/schedulerTypes";
+import type { Peer } from "../peers/peer";
 
 export class PieceManager {
   private totalLength: number;
@@ -34,6 +35,14 @@ export class PieceManager {
     }
 
     this.numPieces = Math.ceil(this.totalLength / pieceLength);
+
+    this.completeDownloadHandler();
+  }
+
+  public completeDownloadHandler() {
+    if (this.verifiedPieces.size !== this.numPieces) return;
+
+    this.SchedulerDispatch({ type: "DOWNLOAD_COMPLETED" });
   }
 
   //no async factory required i realised since torrent class initialises storage manager explicitly
@@ -107,21 +116,33 @@ export class PieceManager {
     return length === this.getBlockLength(pieceIdx, offset);
   }
 
-  public async receiveBlock(piece: Piece) {
+  public async receiveBlock(piece: Piece, peer: Peer) {
     const { pieceIdx, offset, block } = piece;
+
+    if (this.verifiedPieces.has(pieceIdx)) return;
+
     if (!this.isValidBlock(pieceIdx, offset, block.length)) {
       console.warn("Invalid piece receiveBlock");
       return;
     }
 
-    if (this.verifiedPieces.has(pieceIdx)) return;
-
     const blockKey = `${pieceIdx},${offset}`;
+
     this.blocks.set(blockKey, block);
+
+    const storedForPiece =
+      this.getBlockCount(pieceIdx) - this.getNeededBlocks(pieceIdx).length;
+
+    // console.log(
+    //   `📦 stored piece=${pieceIdx} offset=${offset} | ` +
+    //     `${storedForPiece}/${this.getBlockCount(pieceIdx)} blocks`,
+    // );
+
     this.SchedulerDispatch({ type: "BLOCK_RECEIVED", piece });
 
     if (this.isCompletePiece(pieceIdx)) {
       const assembled = this.assemblePiece(pieceIdx);
+      console.log(`🧩 PIECE ${pieceIdx} COMPLETE`);
 
       if (
         this.verifyPiece(
@@ -129,11 +150,21 @@ export class PieceManager {
           Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20)),
         )
       ) {
+        // console.log(
+        //   `🔐 PIECE ${pieceIdx} is valid hash valid=${Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20))}`,
+        // );
         await this.storageManager.writePiece(pieceIdx, assembled);
         this.verifiedPieces.add(pieceIdx);
         this.pieceStatIncrement();
         this.bytesDownloadedIncrement(assembled.length);
+        // console.log("Written a piece to disk");
+
+        peer.HAVE_REQ(pieceIdx);
+        this.completeDownloadHandler();
+        return;
       }
+
+      console.log("Block didnt match hash");
     }
   }
 
@@ -141,16 +172,23 @@ export class PieceManager {
     const numBlocks = this.getBlockCount(pieceIdx);
 
     for (let i = 0; i < numBlocks; i++) {
-      if (this.blocks.get(`${pieceIdx},${i * BLOCK_SIZE}`) === undefined)
+      const offset = i * BLOCK_SIZE;
+      const key = `${pieceIdx},${offset}`;
+
+      if (!this.blocks.has(key)) {
+        // console.log(
+        //   `❌ piece ${pieceIdx} incomplete: missing offset=${offset}`,
+        // );
         return false;
+      }
     }
+
+    // console.log(`✅ piece ${pieceIdx} HAS ALL ${numBlocks} BLOCKS`);
 
     return true;
   }
 
   private assemblePiece(pieceIdx: number): Buffer {
-    if (!this.isCompletePiece(pieceIdx)) throw new Error("Piece isnt valid");
-
     let buf = Buffer.alloc(0);
     const blocks = this.getBlockCount(pieceIdx);
 
@@ -169,24 +207,30 @@ export class PieceManager {
   }
 
   public getNeededBlocks(pieceIdx: number): BlockRequest[] {
-    const numBlocks = this.getBlockCount(pieceIdx);
+    if (this.verifiedPieces.has(pieceIdx)) {
+      return [];
+    }
 
+    const numBlocks = this.getBlockCount(pieceIdx);
     const neededBlocks: BlockRequest[] = [];
 
     for (let i = 0; i < numBlocks; i++) {
       const blockSize = this.getBlockLength(pieceIdx, i * BLOCK_SIZE);
       const key = `${pieceIdx},${i * BLOCK_SIZE}`;
-      if (!this.blocks.has(key))
+
+      if (!this.blocks.has(key)) {
         neededBlocks.push({
           pieceIdx,
           length: blockSize,
           offset: i * BLOCK_SIZE,
         });
+      }
     }
+
     return neededBlocks;
   }
 
-  public async initAvailablePieces() {
+  public async verifyAvailablePieces() {
     //benchmark
 
     const CONCURRENT_READS = 32;
@@ -233,4 +277,11 @@ export class PieceManager {
     console.log(`${(end - startTime).toFixed(2)} ms`);
     console.log(`Found ${this.verifiedPieces.size} already on disk`);
   }
+
+  getVerifiedPieces = (): {
+    verifiedPieces: ReadonlySet<number>;
+    totalPieces: number;
+  } => {
+    return { verifiedPieces: this.verifiedPieces, totalPieces: this.numPieces };
+  };
 }

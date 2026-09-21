@@ -1,7 +1,7 @@
 import { Torrent } from "./torrent";
 
 const torrent = new Torrent(
-  "./deb.torrent",
+  "./debi.torrent",
   "/Users/dhruv/Code/bunnyHunt/download",
 );
 
