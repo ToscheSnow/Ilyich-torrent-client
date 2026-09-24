@@ -1,37 +1,39 @@
 import { mkdir, open, type FileHandle } from "fs/promises";
-import type { DISKFile, TorrentMetadata } from "../types/parserTypes";
+import type { DISKFile, TorrentMetadata } from "../types/metadataTypes";
 import path from "path";
 
 export class StorageManager {
   //file : [{fileLen,startOffset,path}]
-  files: DISKFile[] = [];
+  private files: DISKFile[] = [];
   private fileHandles: Map<string, FileHandle> = new Map<string, FileHandle>();
   private pieceLength: number;
 
   constructor(
-    meta: TorrentMetadata,
+    private readonly meta: TorrentMetadata,
     private dirPath: string,
   ) {
-    this.pieceLength = meta.pieceLength;
+    this.pieceLength = this.meta.pieceLength;
+    this.initFilePaths();
+  }
 
-    //single file
-    if ("length" in meta) {
+  private initFilePaths() {
+    if ("length" in this.meta) {
       this.files.push({
         startOffset: 0,
-        path: [meta["name"]],
-        length: meta["length"],
+        path: path.join(this.dirPath, this.meta.name),
+        length: this.meta["length"],
       });
     }
     // multiple files => files: [{fileLen,length}]
-    else if ("files" in meta) {
-      const files = meta["files"];
+    else if ("files" in this.meta) {
+      const files = this.meta["files"];
 
       let lastEnd = 0;
       for (let i = 0; i < files.length; i++) {
-        const curr = meta["files"][i]!;
+        const curr = this.meta["files"][i]!;
         this.files.push({
           startOffset: lastEnd,
-          path: curr.path,
+          path: path.join(this.dirPath, ...curr.path),
           length: curr.length,
         });
         lastEnd += curr.length;
@@ -47,15 +49,12 @@ export class StorageManager {
     this.fileHandles.clear();
   }
 
-  async initFileHandles() {
-    for (const { length, path: pathArr } of this.files) {
-      const filePath = path.join(
-        this.dirPath,
-        ...pathArr.map((part) => Buffer.from(part).toString("utf8")),
-      );
-      const dirPath = path.dirname(filePath);
+  public async initFileHandles() {
+    for (const { length, path: filePath } of this.files) {
+      const parentDir = path.dirname(filePath);
 
-      await mkdir(dirPath, { recursive: true });
+      await mkdir(parentDir, { recursive: true });
+
       let fileHandle;
 
       try {
@@ -69,10 +68,8 @@ export class StorageManager {
         await fileHandle.truncate(length);
       }
 
-      console.log("OPENED FILE:", filePath);
+      console.log("OPENED FILE: ", filePath);
       this.fileHandles.set(filePath, fileHandle);
-
-      console.log("FILE HANDLES:", [...this.fileHandles.keys()]);
     }
   }
 
@@ -83,13 +80,10 @@ export class StorageManager {
   //buffer 290 340
 
   async writePiece(pieceIdx: number, pieceBuf: Buffer) {
-    // piece offset must be computed from the torrent's pieceLength, not
-    // the fixed 16KB block size - using BLOCK_SIZE here wrote every piece
-    // to the wrong byte offset for any torrent with pieceLength !== 16KB
     const pieceOffset = this.pieceLength * pieceIdx;
     const pieceEnd = pieceOffset + pieceBuf.length;
 
-    for (const { startOffset, length, path: pathArr } of this.files) {
+    for (const { startOffset, length, path: filePath } of this.files) {
       //
 
       if (startOffset + length <= pieceOffset) continue;
@@ -104,11 +98,6 @@ export class StorageManager {
         pieceEnd,
       );
       //write to file
-
-      const filePath = path.join(
-        this.dirPath,
-        ...pathArr.map((part) => Buffer.from(part).toString("utf8")),
-      );
 
       const fileHandle = this.fileHandles.get(filePath)!;
 
@@ -141,30 +130,25 @@ export class StorageManager {
     // half open intervals [ ) for files and torrents
     for (const {
       startOffset: fileOffset,
-      path: pathArr,
-      length: fileLen,
+      path: filePath,
+      length: fileLength,
     } of this.files) {
       // piece comes after the file
-      if (pieceOffset >= fileOffset + fileLen) continue;
+      if (pieceOffset >= fileOffset + fileLength) continue;
       // piece comes before the file
       if (pieceEnd <= fileOffset) continue;
 
-      // this file is a part of the piece
+      // implies curr file is a part of this piece
       const [start, end] = this.intervalIntersection(
         pieceOffset,
         pieceEnd,
         fileOffset,
-        fileOffset + fileLen,
+        fileOffset + fileLength,
       )!;
 
       // with reference to the buffer
       const bufOffset = start - pieceOffset;
       const bufEnd = end - pieceOffset;
-
-      const filePath = path.join(
-        this.dirPath,
-        ...pathArr.map((part) => Buffer.from(part).toString("utf8")),
-      );
 
       const fileHandle = this.fileHandles.get(filePath)!;
 
@@ -178,8 +162,6 @@ export class StorageManager {
     }
     return buf;
   }
-
-  
 
   intervalIntersection(
     pieceStart: number,

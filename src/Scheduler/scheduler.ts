@@ -111,7 +111,8 @@ export class Scheduler {
   // schedule a single request to a peer after finding a legal pair returns success
   scheduleOne(): boolean {
     for (const peer of this.peers) {
-      if (peer.isOverloaded || peer.isPeerChoking) continue;
+      // check for overloaded peer as well
+      if ( peer.isPeerChoking) continue;
 
       const availablePieces = peer.pieces;
 

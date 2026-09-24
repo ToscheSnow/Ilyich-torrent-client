@@ -1,29 +1,24 @@
-export class AsyncMessageQueue<T> {
-  private items: T[] = [];
-  private itemHead = 0;
+import { Queue } from "@datastructures-js/queue";
 
-  private waiters: ((item: T) => void)[] = [];
+export class AsyncMessageQueue<T> {
+  private items: Queue<T> = new Queue<T>();
+
+  private consumers: Queue<(item: T) => void> = new Queue<(item: T) => void>();
 
   pop(): Promise<T> {
-    if (this.itemHead < this.items.length) {
-      const item = this.items[this.itemHead]!;
-      this.itemHead++;
-
-      if (this.itemHead === this.items.length) {
-        this.items = [];
-        this.itemHead = 0;
-      }
+    if (!this.items.isEmpty()) {
+      const item = this.items.pop()!;
 
       return Promise.resolve(item);
     }
 
     return new Promise<T>((resolve) => {
-      this.waiters.push(resolve);
+      this.consumers.push(resolve);
     });
   }
 
   push(item: T): void {
-    const waiter = this.waiters.shift();
+    const waiter = this.consumers.pop();
 
     if (waiter) {
       waiter(item);

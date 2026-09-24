@@ -1,5 +1,5 @@
-import { BLOCK_SIZE } from "../../client";
-import type { TorrentMetadata } from "../types/parserTypes";
+import { BLOCK_SIZE } from "../client";
+import type { TorrentMetadata } from "../types/metadataTypes";
 import type { BlockRequest, Piece } from "../types/peerTypes";
 import { createHash } from "crypto";
 import type { StorageManager } from "../fileAssembly/StorageManager";
@@ -130,8 +130,8 @@ export class PieceManager {
 
     this.blocks.set(blockKey, block);
 
-    const storedForPiece =
-      this.getBlockCount(pieceIdx) - this.getNeededBlocks(pieceIdx).length;
+    // const storedForPiece =
+    //   this.getBlockCount(pieceIdx) - this.getNeededBlocks(pieceIdx).length;
 
     // console.log(
     //   `📦 stored piece=${pieceIdx} offset=${offset} | ` +
@@ -159,7 +159,7 @@ export class PieceManager {
         this.bytesDownloadedIncrement(assembled.length);
         // console.log("Written a piece to disk");
 
-        peer.HAVE_REQ(pieceIdx);
+        peer.HAVE_Req(pieceIdx);
         this.completeDownloadHandler();
         return;
       }

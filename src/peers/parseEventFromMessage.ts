@@ -1,27 +1,41 @@
 import type { PeerEvent } from "../types/peerTypes";
 
-export function parseEventFromMessage(message: Buffer): PeerEvent {
+enum PEER_MESSAGE_ID {
+  CHOKE,
+  UNCHOKE,
+  INTERESTED,
+  NOT_INTERESTED,
+  HAVE,
+  BITFIELD,
+  REQUEST,
+  PIECE,
+  CANCEL,
+  PORT,
+  EXTENDED = 20,
+}
+
+export function decodeIncomingPeerMessage(message: Buffer): PeerEvent {
   // messageID always takes up 1 byte
   const messageID = message.readUInt8();
   //according to the bitTorrent protocol
 
   //must read unsigned integers
   switch (messageID) {
-    case 0:
+    case PEER_MESSAGE_ID.CHOKE:
       return { type: "CHOKE" };
-    case 1:
+    case PEER_MESSAGE_ID.UNCHOKE:
       return { type: "UNCHOKE" };
-    case 2:
+    case PEER_MESSAGE_ID.INTERESTED:
       return { type: "INTERESTED" };
-    case 3:
-      return { type: "NOT-INTERESTED" };
-    case 4:
+    case PEER_MESSAGE_ID.NOT_INTERESTED:
+      return { type: "NOT_INTERESTED" };
+    case PEER_MESSAGE_ID.HAVE:
       // HAVE request has a payload of 4 bytes
       if (message.length !== 5) throw new Error("Invalid HAVE message");
       return { type: "HAVE", pieceId: message.readUInt32BE(1) };
-    case 5:
+    case PEER_MESSAGE_ID.BITFIELD:
       return { type: "BITFIELD", field: Buffer.from(message.subarray(1)) };
-    case 6:
+    case PEER_MESSAGE_ID.REQUEST:
       //REQUEST has a payload of 12 bytes from 4 each from pieceNum , offset and length
       if (message.length !== 13) throw new Error("Invalid REQUEST message");
       return {
@@ -32,7 +46,7 @@ export function parseEventFromMessage(message: Buffer): PeerEvent {
           length: message.readUInt32BE(9),
         },
       };
-    case 7:
+    case PEER_MESSAGE_ID.PIECE:
       //piece and offset consume atleast 8 bytes 4 from each
       if (message.length < 9)
         throw new Error("Piece isn't of sufficient length");
@@ -44,7 +58,7 @@ export function parseEventFromMessage(message: Buffer): PeerEvent {
           block: Buffer.from(message.subarray(9)),
         },
       };
-    case 8:
+    case PEER_MESSAGE_ID.CANCEL:
       // CANCEL request payload has exactly 12 bytes 4 from each piece,offset and length
       if (message.length !== 13) throw new Error("Invalid CANCEL message");
       return {
@@ -58,7 +72,7 @@ export function parseEventFromMessage(message: Buffer): PeerEvent {
       };
 
     //no idea what port does 🥺
-    case 9:
+    case PEER_MESSAGE_ID.PORT:
       if (message.length !== 3) {
         throw new Error("Invalid PORT message");
       }
@@ -66,7 +80,7 @@ export function parseEventFromMessage(message: Buffer): PeerEvent {
       return {
         type: "PORT",
       };
-    case 20:
+    case PEER_MESSAGE_ID.EXTENDED:
       console.log("Ignoring extended message");
       return {
         type: "EXTENDED",

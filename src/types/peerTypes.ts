@@ -33,7 +33,7 @@ export type PeerEvent =
   | { type: "CHOKE" }
   | { type: "UNCHOKE" }
   | { type: "INTERESTED" }
-  | { type: "NOT-INTERESTED" }
+  | { type: "NOT_INTERESTED" }
   | { type: "HAVE"; pieceId: number }
   | { type: "BITFIELD"; field: Uint8Array }
   | { type: "REQUEST"; block: BlockRequest }

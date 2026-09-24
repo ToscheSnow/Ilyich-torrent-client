@@ -1,9 +1,9 @@
-import { CLIENT_ID_BYTES } from "../../client";
+import { CLIENT_ID_BYTES } from "../client";
 import { handshakeBuf } from "./handshakeBuf";
 import net from "node:net";
 import { verifyHandshake } from "./verifyHandshake";
 import type { SchedulerDispatchCallback } from "../types/schedulerTypes";
-import type { PeerState, Piece } from "../types/peerTypes";
+import type { Piece } from "../types/peerTypes";
 import { Peer } from "./peer";
 import { BITFIELD_BUF } from "./bitfield";
 
@@ -13,15 +13,11 @@ export type PeerAddress = {
 };
 
 export class PeerManager {
-  //currently active Peer connections , will be used by the Scheduler
-
   private connectingPeers: Set<string> = new Set<string>();
 
   constructor(
     private activePeers: Set<Peer>,
-    // private peerAddresses: Set<PeerAddress>,
     private infoHash: Buffer,
-    // private maxConnecting = 10,
     private schedulerDispatch: SchedulerDispatchCallback,
     private pieceHandler: (piece: Piece, peer: Peer) => Promise<void>,
     private getVerifiedPieces: () => {
@@ -76,12 +72,7 @@ export class PeerManager {
 
       this.connectingPeers.delete(peerKey);
 
-      const peer = new Peer(
-        createDefaultPeerState(),
-        socket,
-        this.schedulerDispatch,
-        this.pieceHandler,
-      );
+      const peer = new Peer(socket, this.schedulerDispatch, this.pieceHandler);
 
       this.activePeers.add(peer);
 
@@ -99,7 +90,7 @@ export class PeerManager {
     socket.on("data", onHandshake);
 
     socket.on("error", (err) => {
-      console.log(`❌😂 Connection error with ${peerKey}:`, err.message);
+      console.log(`❌ Connection error with ${peerKey}:`, err.message);
       this.connectingPeers.delete(peerKey);
     });
 
@@ -111,22 +102,4 @@ export class PeerManager {
       console.log(`⏰ TIMEOUT ${peerKey}`);
     });
   }
-
-  public get activePeer(): Set<Peer> {
-    return this.activePeers;
-  }
-
-  public get activePeerCount(): number {
-    return this.activePeer.size;
-  }
-}
-
-export function createDefaultPeerState(): PeerState {
-  return {
-    amChoking: true,
-    amInterested: false,
-    peerChoking: true,
-    peerInterested: false,
-    maxInFlight: 10,
-  };
 }

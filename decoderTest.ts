@@ -1,12 +1,11 @@
-import { ByteParser } from "./src/fileParsing/parserDecoder";
+import { BencodeDecoder } from "./src/fileParsing/parserDecoder";
 import { readFileSync, writeFileSync } from "fs";
 const buf = readFileSync("2001.torrent");
-const parser = new ByteParser(new Uint8Array(buf));
+const parser = new BencodeDecoder(new Uint8Array(buf));
 
 const decoder = new TextDecoder();
 
 const res = parser.parse();
-
 
 function toJsonSafe(value: unknown, key?: string): unknown {
   if (value instanceof Uint8Array) {

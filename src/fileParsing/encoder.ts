@@ -1,11 +1,11 @@
 import type { BencodeDict, BencodeVal } from "../types/parserTypes";
 import { ASCII } from "./parserDecoder";
 
-export class ByteEncoder {
+export class BencodeEncoder {
   private textEncoder = new TextEncoder();
 
   //generic encode
-  encode(value: BencodeVal) {
+  public encode(value: BencodeVal): Uint8Array {
     if (value instanceof Uint8Array) return this.encodeRawBytes(value);
     else if (typeof value === "string") return this.encodeByteString(value);
     else if (typeof value === "number") return this.encodeNum(value);
@@ -14,7 +14,7 @@ export class ByteEncoder {
   }
 
   // encode numbers to bytes using TextEncoder
-  private encodeNum(num: number = 0): Uint8Array {
+  private encodeNum(num: number): Uint8Array {
     let repr = `i${num.toString()}e`;
     //textEncoder writes bytes from a Uint8Buffer
     return new Uint8Array(this.textEncoder.encode(repr));
@@ -22,8 +22,15 @@ export class ByteEncoder {
 
   // encode byte strings for decoded strings
   private encodeByteString(content: string): Uint8Array {
-    let repr = `${this.textEncoder.encode(content).length}:${content}`;
-    return new Uint8Array(this.textEncoder.encode(repr));
+    const bytes = this.textEncoder.encode(content);
+    const prefix = this.textEncoder.encode(`${bytes.length}:`);
+
+    const result = new Uint8Array(prefix.length + bytes.length);
+
+    result.set(prefix);
+    result.set(bytes, prefix.length);
+
+    return result;
   }
 
   // encode raw bytes for info and other hashes to bytes
@@ -53,7 +60,7 @@ export class ByteEncoder {
       length += encoded.length;
     }
 
-    //extra 2 characters for l and e
+    //extra 2 bytes for l and e
     const res = new Uint8Array(length + 2);
 
     res[0] = ASCII.l;

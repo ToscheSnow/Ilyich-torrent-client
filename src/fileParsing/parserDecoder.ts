@@ -1,4 +1,4 @@
-import type { BencodeVal, BencodeDict } from "../types/parserTypes";
+import type { BencodeDict, BencodeVal } from "../types/parserTypes";
 
 export enum ASCII {
   //compare ascii -> hex for raw bytes
@@ -13,7 +13,7 @@ export enum ASCII {
   HP = 0x2d,
 }
 
-export class ByteParser {
+export class BencodeDecoder {
   private decoder = new TextDecoder();
   private pos = 0;
   constructor(private buf: Uint8Array) {}

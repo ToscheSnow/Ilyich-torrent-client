@@ -1,5 +1,5 @@
 import type { trackerURLParams } from "../types/tracker";
-import { CLIENT_ID_BYTES } from "../../client";
+import { CLIENT_ID_BYTES } from "../client";
 
 export function trackerURL({
   urlPath,

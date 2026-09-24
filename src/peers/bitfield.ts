@@ -1,4 +1,4 @@
-export function availablePieces(
+export function addPiecesFromBitfield(
   receivedBitfield: Uint8Array,
   peerPieces: Set<number>,
 ): void {

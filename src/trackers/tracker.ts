@@ -1,7 +1,7 @@
 import type { BencodeDict } from "../types/parserTypes";
 import type { PeerAddress } from "../peers/PeerManager";
-import { ByteParser } from "../fileParsing/parserDecoder";
-import { parseCompactPeers } from "../fileParsing/parseCompactPeers";
+import { BencodeDecoder } from "../fileParsing/parserDecoder";
+import { parsePeerAddress } from "../fileParsing/parsePeerAddress";
 import { trackerURL } from "./trackerURL";
 
 export type TrackerResponse = {
@@ -143,7 +143,7 @@ export class Tracker {
 
     const responseBytes = Buffer.from(await response.arrayBuffer());
 
-    const decoder = new ByteParser(responseBytes);
+    const decoder = new BencodeDecoder(responseBytes);
     const decoded = decoder.parse() as BencodeDict;
 
     if ("failure reason" in decoded) {
@@ -167,7 +167,7 @@ export class Tracker {
     let parsedPeers: PeerAddress[];
 
     if (peers instanceof Uint8Array) {
-      parsedPeers = parseCompactPeers(peers);
+      parsedPeers = parsePeerAddress(peers);
     } else if (Array.isArray(peers)) {
       const textDecoder = new TextDecoder();
 

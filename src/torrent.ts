@@ -1,21 +1,20 @@
-import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 
-import { ByteParser } from "./src/fileParsing/parserDecoder";
-import { infoDict } from "./src/fileParsing/TorrentMetadata";
-import type { BencodeDict } from "./src/types/parserTypes";
+import { BencodeDecoder } from "./fileParsing/parserDecoder";
 
-import { StorageManager } from "./src/fileAssembly/StorageManager";
-import { PieceManager } from "./src/Pieces/PieceManager";
-import { Scheduler } from "./src/Scheduler/scheduler";
-import { PeerManager } from "./src/peers/PeerManager";
-import type { Peer } from "./src/peers/peer";
+import { StorageManager } from "./fileAssembly/StorageManager";
+import { PieceManager } from "./Pieces/PieceManager";
+import { PeerManager } from "./peers/PeerManager";
+import type { Peer } from "./peers/peer";
 
 import { CLIENT_ID_BYTES } from "./client";
-import { Tracker } from "./src/trackers/tracker";
-import { DownloadStats } from "./src/utils/DownloadStats";
-import { StatsReporter } from "./src/utils/StatsReporter";
+import { Tracker } from "./trackers/tracker";
+import { DownloadStats } from "./utils/DownloadStats";
+import { StatsReporter } from "./utils/StatsReporter";
+import { Scheduler } from "./Scheduler/scheduler";
+import type { BencodeDict } from "./types/parserTypes";
+import { getMeta } from "./fileParsing/meta";
 
 export class Torrent {
   private readonly activePeers: Set<Peer> = new Set();
@@ -33,14 +32,14 @@ export class Torrent {
   public totalBytes = 0;
 
   constructor(
-    private readonly torrentPath: string,
+    private readonly torrentFile: Buffer,
     private readonly downloadDir: string = path.join(homedir(), "Downloads"),
   ) {
-    const decoder = new ByteParser(readFileSync(this.torrentPath));
+    const decoder = new BencodeDecoder(this.torrentFile);
 
     const decodedTorrent = decoder.parse() as BencodeDict;
 
-    this.meta = infoDict(decodedTorrent);
+    this.meta = getMeta(decodedTorrent);
     this.infoHash = Buffer.from(this.meta.infoHash);
 
     this.totalBytes = this.getTotalBytes();
