@@ -90,28 +90,28 @@ export class StorageManager {
       if (pieceEnd <= startOffset) continue;
 
       //in the interval
-
-      const [start, end] = this.findBufferOffset(
-        startOffset,
-        length,
-        pieceOffset,
-        pieceEnd,
-      );
-      //write to file
-
       const fileHandle = this.fileHandles.get(filePath)!;
 
-      await fileHandle.write(
-        pieceBuf,
-        start,
-        end - start,
-        pieceOffset + start - startOffset,
+      const [start, end] = this.intervalIntersection(
+        pieceOffset,
+        pieceEnd,
+        startOffset,
+        startOffset + length,
       );
-      //
+
+      const bufferOffset = start - pieceOffset;
+      const fileOffset = start - startOffset;
+      const bytesToWrite = end - start;
+
+      await fileHandle.write(pieceBuf, bufferOffset, bytesToWrite, fileOffset);
     }
   }
 
-  async readPiece(pieceIdx: number, pieceLength: number): Promise<Buffer> {
+  async readBlock(
+    pieceIdx: number,
+    pieceLength: number,
+    blockOffset = 0,
+  ): Promise<Buffer> {
     // piece
     // 100 250
 
@@ -124,7 +124,7 @@ export class StorageManager {
     const buf = Buffer.alloc(pieceLength);
 
     // coordinates of the piece in global torrent bytes
-    const pieceOffset = pieceIdx * this.pieceLength;
+    const pieceOffset = pieceIdx * this.pieceLength + blockOffset;
     const pieceEnd = pieceOffset + pieceLength;
 
     // half open intervals [ ) for files and torrents
@@ -170,17 +170,5 @@ export class StorageManager {
     fileEnd: number,
   ): [number, number] {
     return [Math.max(fileStart, pieceStart), Math.min(fileEnd, pieceEnd)];
-  }
-
-  findBufferOffset(
-    fileOffset: number,
-    fileLength: number,
-    pieceOffset: number,
-    pieceEnd: number,
-  ): [number, number] {
-    const l = Math.max(fileOffset, pieceOffset) - pieceOffset;
-    const r = Math.min(fileOffset + fileLength, pieceEnd) - pieceOffset;
-
-    return [l, r];
   }
 }

@@ -15,7 +15,7 @@ import { Scheduler } from "./Scheduler/scheduler";
 import type { BencodeDict } from "./types/parserTypes";
 import { getMeta } from "./fileParsing/meta";
 import { Recon } from "./Emitter/Recon";
-import type { Piece } from "./types/peerTypes";
+import type { BlockRequest, Piece } from "./types/peerTypes";
 import { startStatsUI } from "./utils/stats-ui";
 
 export type TorrentEvents = {
@@ -28,6 +28,8 @@ export type TorrentEvents = {
   "PEER:UNCHOKE": [Peer];
   DOWNLOAD_COMPLETE: [];
   "BLOCK:RECEIVED": [Piece];
+  "PEER:INCOMING_PIECE_REQUEST": [BlockRequest, Peer];
+  "BLOCK:UPLOADED": [number];
 };
 
 export class Torrent {
@@ -81,7 +83,8 @@ export class Torrent {
       this.infoHash,
       // 10,
       this.recon,
-      this.pieceManager.receiveBlock.bind(this.pieceManager),
+      this.pieceManager.receiveBlock,
+      this.pieceManager.getBlock,
       this.pieceManager.getVerifiedPieces,
     );
 

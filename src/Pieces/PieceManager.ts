@@ -115,7 +115,7 @@ export class PieceManager {
     return length === this.getBlockLength(pieceIdx, offset);
   }
 
-  public async receiveBlock(piece: Piece, peer: Peer) {
+  public receiveBlock = async (piece: Piece, peer: Peer) => {
     const { pieceIdx, offset, block } = piece;
 
     if (this.verifiedPieces.has(pieceIdx)) return;
@@ -169,7 +169,7 @@ export class PieceManager {
 
       // console.log("Block didnt match hash");
     }
-  }
+  };
 
   private isCompletePiece(pieceIdx: number): boolean {
     const numBlocks = this.getBlockCount(pieceIdx);
@@ -241,7 +241,7 @@ export class PieceManager {
     // worker function to check and verify written pieces
     const readAndVerifyPiece = async (pieceIdx: number) => {
       const pieceLen = this.getPieceLength(pieceIdx);
-      const pieceBuf: Buffer = await this.storageManager.readPiece(
+      const pieceBuf: Buffer = await this.storageManager.readBlock(
         pieceIdx,
         this.getPieceLength(pieceIdx),
       );
@@ -297,5 +297,15 @@ export class PieceManager {
     totalPieces: number;
   } => {
     return { verifiedPieces: this.verifiedPieces, totalPieces: this.numPieces };
+  };
+
+  getBlock = async ({
+    pieceIdx,
+    offset,
+    length,
+  }: BlockRequest): Promise<Buffer | undefined> => {
+    if (!this.verifiedPieces.has(pieceIdx)) return undefined;
+
+    return this.storageManager.readBlock(pieceIdx, length, offset);
   };
 }

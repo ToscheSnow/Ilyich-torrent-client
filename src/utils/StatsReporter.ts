@@ -7,6 +7,7 @@ export class Stats {
   private bytesDownloadedThisSession = 0;
   private totalBytesHave = 0;
   private lastSpeedCheckBytes = 0;
+  private uploadedBytes = 0;
 
   constructor(
     private readonly totalPieces: number,
@@ -41,6 +42,12 @@ export class Stats {
       this.recon.listen("BLOCK:RECEIVED", ({ block }) => {
         this.bytesDownloadedThisSession += block.length;
         this.totalBytesHave += block.length;
+      }),
+    );
+
+    handlers.push(
+      this.recon.listen("BLOCK:UPLOADED", (bytes) => {
+        this.uploadedBytes += bytes;
       }),
     );
 
@@ -80,6 +87,10 @@ export class Stats {
 
   public get progress(): number {
     return this.piecesCompleted / this.totalPieces;
+  }
+
+  public get bytesUploaded(): number {
+    return this.uploadedBytes;
   }
 
   public speedSince(intervalMs: number): number {

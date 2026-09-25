@@ -2,7 +2,7 @@ import { CLIENT_ID_BYTES } from "../client";
 import { handshakeBuf } from "./handshakeBuf";
 import net from "node:net";
 import { verifyHandshake } from "./verifyHandshake";
-import type { Piece } from "../types/peerTypes";
+import type { BlockRequest, Piece } from "../types/peerTypes";
 import { Peer } from "./peer";
 import { BITFIELD_BUF } from "./bitfield";
 import type { TorrentEvents } from "../torrent";
@@ -21,11 +21,22 @@ export class PeerManager {
     private infoHash: Buffer,
     private recon: Recon<TorrentEvents>,
     private pieceHandler: (piece: Piece, peer: Peer) => Promise<void>,
+    private getBlock: (reqBlock: BlockRequest) => Promise<Buffer | undefined>,
     private getVerifiedPieces: () => {
       verifiedPieces: ReadonlySet<number>;
       totalPieces: number;
     },
   ) {
+    // peer manager coordinates incoming peer requests
+    this.recon.listen("PEER:INCOMING_PIECE_REQUEST", async (block, peer) => {
+      const reqBlockBuf = await this.getBlock(block);
+      if (reqBlockBuf === undefined) return;
+
+      peer.SEND_PIECE(block, reqBlockBuf);
+
+      this.recon.announce("BLOCK:UPLOADED", block.length);
+    });
+
     this.recon.listen("PEER:DISCONNECT", (peer) => {
       this.activePeers.delete(peer);
     });

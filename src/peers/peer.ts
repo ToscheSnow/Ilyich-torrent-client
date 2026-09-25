@@ -43,6 +43,7 @@ export class Peer {
     this.recon.once("DOWNLOAD_COMPLETE", () => {
       this.socket.destroy();
       this.pendingRequests.clear();
+
       this.reqQueue.close();
       this.incomingQueue.close();
     });
@@ -102,16 +103,23 @@ export class Peer {
         // console.log(
         //   `🍒 incoming request: piece=${event.block.pieceIdx} offset=${event.block.offset} length=${event.block.length}`,
         // );
-
         if (this.state.amChoking) {
           return;
         }
+
         // this is for them to send us a request we will send them the piece which is a buffer
+        // the peer manager will coordinate with piece manager to send them the request
+        this.recon.announce(
+          "PEER:INCOMING_PIECE_REQUEST",
+          { ...event.block },
+          this,
+        );
         return;
 
       case "CANCEL":
         // Remove matching request from upload tracking
 
+        // not implemented and not important
         //
         return;
 
@@ -318,14 +326,18 @@ export class Peer {
     this.reqQueue.push(haveBuf);
   }
 
-  public SEND_PIECE(block: Buffer) {
-    // 4 bytes for length 1 for messge id
-    const req = Buffer.alloc(block.length + 4 + 1);
+  public SEND_PIECE({ pieceIdx, offset }: BlockRequest, blockBuf: Buffer) {
+    // 4 bytes for length 1 for messge id 4 + 4 for pieceIdx and offset rest for the piece itself
+    const req = Buffer.alloc(4 + 1 + 4 + 4 + blockBuf.length);
 
-    req.writeUInt32BE(block.length + 1, 0);
+    req.writeUInt32BE(1 + 4 + 4 + blockBuf.length, 0);
     // message id for piece request is 7;
     req[4] = 0x7;
-    req.set(block, 5);
+
+    req.writeUint32BE(pieceIdx, 5);
+    req.writeUint32BE(offset, 9);
+
+    req.set(blockBuf, 13);
 
     this.reqQueue.push(req);
   }
