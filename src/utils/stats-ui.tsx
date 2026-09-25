@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { Text, Box, render } from "ink";
 import type { Stats } from "./StatsReporter";
-import type { Recon } from "../Emitter/Recon"
-import type { TorrentEvents } from "../torrent"
+import type { Recon } from "../Emitter/Recon";
+import type { TorrentEvents } from "../torrent";
 
 function formatBytes(n: number): string {
   if (n < 1024) return `${n.toFixed(0)} B`;
@@ -28,6 +28,7 @@ function App({ stats }: { stats: Stats }) {
         Progress: {stats.piecesCompletedCount} pieces ({pct}%) —{" "}
         {formatBytes(stats.downloadedBytes)} total
       </Text>
+      <Text color="green">Uploaded {formatBytes(stats.bytesUploaded)} total</Text>
       <Text>
         Speed: {formatBytes(speed)}/s — Peers: {stats.peersConnectedCount}
       </Text>

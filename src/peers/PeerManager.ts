@@ -29,7 +29,16 @@ export class PeerManager {
   ) {
     // peer manager coordinates incoming peer requests
     this.recon.listen("PEER:INCOMING_PIECE_REQUEST", async (block, peer) => {
+      const start = performance.now();
+
       const reqBlockBuf = await this.getBlock(block);
+
+      const readTime = performance.now() - start;
+
+      console.log(
+        `📤 upload read: ${readTime.toFixed(2)}ms, ${block.length} bytes`,
+      );
+
       if (reqBlockBuf === undefined) return;
 
       peer.SEND_PIECE(block, reqBlockBuf);

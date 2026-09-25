@@ -109,6 +109,8 @@ export class Peer {
 
         // this is for them to send us a request we will send them the piece which is a buffer
         // the peer manager will coordinate with piece manager to send them the request
+        console.log("Received a request for a block");
+        
         this.recon.announce(
           "PEER:INCOMING_PIECE_REQUEST",
           { ...event.block },

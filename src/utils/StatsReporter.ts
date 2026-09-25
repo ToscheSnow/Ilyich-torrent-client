@@ -20,7 +20,13 @@ export class Stats {
     const handlers: unsubscribeFn[] = [];
 
     handlers.push(
-      this.recon.listen("PIECE:COMPLETED", (_, length) => {
+      this.recon.listen("PIECE:COMPLETED", () => {
+        this.piecesCompleted++;
+        // this.totalBytesHave += length;
+      }),
+    );
+    handlers.push(
+      this.recon.listen("PIECE:EXISTING", (length) => {
         this.piecesCompleted++;
         this.totalBytesHave += length;
       }),

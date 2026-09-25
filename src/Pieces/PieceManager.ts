@@ -258,7 +258,7 @@ export class PieceManager {
 
       this.verifiedPieces.add(pieceIdx);
 
-      this.recon.announce("PIECE:COMPLETED", pieceIdx, pieceLen);
+      this.recon.announce("PIECE:EXISTING", pieceLen);
     };
 
     const startTime = performance.now();

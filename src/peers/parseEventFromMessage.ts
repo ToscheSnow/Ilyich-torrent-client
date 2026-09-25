@@ -23,19 +23,26 @@ export function decodeIncomingPeerMessage(message: Buffer): PeerEvent {
   switch (messageID) {
     case PEER_MESSAGE_ID.CHOKE:
       return { type: "CHOKE" };
+
     case PEER_MESSAGE_ID.UNCHOKE:
       return { type: "UNCHOKE" };
+
     case PEER_MESSAGE_ID.INTERESTED:
       return { type: "INTERESTED" };
+
     case PEER_MESSAGE_ID.NOT_INTERESTED:
       return { type: "NOT_INTERESTED" };
+
     case PEER_MESSAGE_ID.HAVE:
       // HAVE request has a payload of 4 bytes
       if (message.length !== 5) throw new Error("Invalid HAVE message");
       return { type: "HAVE", pieceId: message.readUInt32BE(1) };
+
     case PEER_MESSAGE_ID.BITFIELD:
       return { type: "BITFIELD", field: Buffer.from(message.subarray(1)) };
+
     case PEER_MESSAGE_ID.REQUEST:
+      console.log("🥺 INCOMING REQUEST FOR A PIECE");
       //REQUEST has a payload of 12 bytes from 4 each from pieceNum , offset and length
       if (message.length !== 13) throw new Error("Invalid REQUEST message");
       return {
@@ -46,6 +53,7 @@ export function decodeIncomingPeerMessage(message: Buffer): PeerEvent {
           length: message.readUInt32BE(9),
         },
       };
+
     case PEER_MESSAGE_ID.PIECE:
       //piece and offset consume atleast 8 bytes 4 from each
       if (message.length < 9)
@@ -58,6 +66,7 @@ export function decodeIncomingPeerMessage(message: Buffer): PeerEvent {
           block: Buffer.from(message.subarray(9)),
         },
       };
+
     case PEER_MESSAGE_ID.CANCEL:
       // CANCEL request payload has exactly 12 bytes 4 from each piece,offset and length
       if (message.length !== 13) throw new Error("Invalid CANCEL message");
@@ -80,6 +89,7 @@ export function decodeIncomingPeerMessage(message: Buffer): PeerEvent {
       return {
         type: "PORT",
       };
+
     case PEER_MESSAGE_ID.EXTENDED:
       return {
         type: "EXTENDED",
