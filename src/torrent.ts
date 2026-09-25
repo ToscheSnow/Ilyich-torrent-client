@@ -15,7 +15,8 @@ import { Scheduler } from "./Scheduler/scheduler";
 import type { BencodeDict } from "./types/parserTypes";
 import { getMeta } from "./fileParsing/meta";
 import { Recon } from "./Emitter/Recon";
-import type { PieceInfo } from "./types/peerTypes";
+import type { Piece } from "./types/peerTypes";
+import { startStatsUI } from "./utils/stats-ui";
 
 export type TorrentEvents = {
   "PEER:CONNECT": [Peer];
@@ -23,10 +24,10 @@ export type TorrentEvents = {
   "PEER:CHOKE": [Peer];
   "PEER:HAVE": [Peer];
   "PEER:BITFIELD": [Peer];
-  "PIECE:WRITTEN": [number, number];
+  "PIECE:COMPLETED": [number, number];
+  "PEER:UNCHOKE": [Peer];
   DOWNLOAD_COMPLETE: [];
-  "BLOCK:RECEIVED": [PieceInfo];
-  "PIECE:VERIFIED": [number, number];
+  "BLOCK:RECEIVED": [Piece];
 };
 
 export class Torrent {
@@ -58,11 +59,7 @@ export class Torrent {
 
     this.totalBytes = this.getTotalBytes();
 
-    this.stats = new Stats(
-      this.meta.pieceHashes.length / 20,
-      this.meta.pieceLength,
-      this.recon,
-    );
+    this.stats = new Stats(this.meta.pieceHashes.length / 20, this.recon);
 
     this.storageManager = new StorageManager(this.meta, this.downloadDir);
 
@@ -104,9 +101,10 @@ export class Torrent {
 
     await this.announce();
 
-    this.stats.start();
-
     this.pieceManager.completeDownloadHandler();
+
+    // this.stats.start();
+    startStatsUI(this.stats, this.recon);
   }
 
   private async announce() {

@@ -10,6 +10,7 @@ import type { TorrentEvents } from "../torrent";
 export class PieceManager {
   private totalLength: number;
   private pieceLength: number;
+  private downloadCompleted = false;
 
   private blocks: Map<string, Buffer> = new Map<string, Buffer>();
   private hashes: Uint8Array;
@@ -39,8 +40,11 @@ export class PieceManager {
   }
 
   public completeDownloadHandler() {
+    if (this.downloadCompleted) return;
+
     if (this.verifiedPieces.size !== this.numPieces) return;
 
+    this.downloadCompleted = true;
     this.recon.announce("DOWNLOAD_COMPLETE");
   }
 
@@ -137,32 +141,33 @@ export class PieceManager {
 
     if (this.isCompletePiece(pieceIdx)) {
       const assembled = this.assemblePiece(pieceIdx);
-      console.log(`🧩 PIECE ${pieceIdx} COMPLETE`);
+      // console.log(`🧩 PIECE ${pieceIdx} COMPLETE`);
 
       if (
-        this.verifyPiece(
+        !this.verifyPiece(
           assembled,
           Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20)),
         )
       ) {
-        // console.log(
-        //   `🔐 PIECE ${pieceIdx} is valid hash valid=${Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20))}`,
-        // );
-        await this.storageManager.writePiece(pieceIdx, assembled);
-        this.verifiedPieces.add(pieceIdx);
-
-        this.recon.announce("PIECE:WRITTEN", pieceIdx, assembled.length);
-
-        this.pieceStatIncrement();
-        this.bytesDownloadedIncrement(assembled.length);
-        // console.log("Written a piece to disk");
-
-        peer.HAVE_Req(pieceIdx);
-        this.completeDownloadHandler();
+        this.clearPieceBlocks(pieceIdx);
         return;
       }
+      // console.log(
+      //   `🔐 PIECE ${pieceIdx} is valid hash valid=${Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20))}`,
+      // );
+      await this.storageManager.writePiece(pieceIdx, assembled);
+      this.verifiedPieces.add(pieceIdx);
 
-      console.log("Block didnt match hash");
+      this.recon.announce("PIECE:COMPLETED", pieceIdx, assembled.length);
+
+      // console.log("Written a piece to disk");
+      this.clearPieceBlocks(pieceIdx);
+
+      peer.HAVE_Req(pieceIdx);
+      this.completeDownloadHandler();
+      return;
+
+      // console.log("Block didnt match hash");
     }
   }
 
@@ -242,17 +247,18 @@ export class PieceManager {
       );
 
       if (
-        this.verifyPiece(
+        !this.verifyPiece(
           pieceBuf,
           Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20)),
         )
       ) {
-        this.verifiedPieces.add(pieceIdx);
-        this.pieceStatIncrement();
-        this.bytesDownloadedIncrement(pieceLen);
-
-        this.recon.announce("PIECE:VERIFIED", pieceIdx, pieceLen);
+        this.clearPieceBlocks(pieceIdx);
+        return;
       }
+
+      this.verifiedPieces.add(pieceIdx);
+
+      this.recon.announce("PIECE:COMPLETED", pieceIdx, pieceLen);
     };
 
     const startTime = performance.now();
@@ -276,6 +282,14 @@ export class PieceManager {
     const end = performance.now();
     console.log(`${(end - startTime).toFixed(2)} ms`);
     console.log(`Found ${this.verifiedPieces.size} already on disk`);
+  }
+
+  private clearPieceBlocks(pieceIdx: number) {
+    const blockCount = this.getBlockCount(pieceIdx);
+
+    for (let i = 0; i < blockCount; i++) {
+      this.blocks.delete(`${pieceIdx},${i * BLOCK_SIZE}`);
+    }
   }
 
   getVerifiedPieces = (): {

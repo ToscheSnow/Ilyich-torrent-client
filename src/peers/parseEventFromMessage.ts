@@ -81,7 +81,6 @@ export function decodeIncomingPeerMessage(message: Buffer): PeerEvent {
         type: "PORT",
       };
     case PEER_MESSAGE_ID.EXTENDED:
-      console.log("Ignoring extended message");
       return {
         type: "EXTENDED",
       };

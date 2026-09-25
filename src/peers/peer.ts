@@ -12,25 +12,10 @@ import { decodeIncomingPeerMessage } from "./parseEventFromMessage";
 import type { Recon } from "../Emitter/Recon";
 import type { TorrentEvents } from "../torrent";
 
-const defaultPeerState: PeerState = {
-  // i am not letting them
-  amChoking: true,
-
-  // i want something
-  amInterested: false,
-
-  // i can not receive 😢
-  peerChoking: true,
-
-  // they want something
-  peerInterested: false,
-
-  maxInFlight: 10,
-};
-
 export class Peer {
   private buf: Buffer = Buffer.alloc(0);
   private availablePieces: Set<number> = new Set<number>();
+  private disconnected = false;
 
   private pendingRequests = new Map<string, PendingRequest>();
   private reqQueue: AsyncMessageQueue<Buffer> = new AsyncMessageQueue<Buffer>();
@@ -41,7 +26,7 @@ export class Peer {
     private socket: Socket,
     private recon: Recon<TorrentEvents>,
     private pieceHandler: (piece: Piece, peer: Peer) => Promise<void>,
-    private state: PeerState = defaultPeerState,
+    private state: PeerState = createDefaultPeerState(),
   ) {
     this.initReconHandlers();
     this.startReqLoop();
@@ -49,15 +34,9 @@ export class Peer {
 
     this.socket.on("data", this.onData);
 
-    this.socket.on("close", () => {
-      this.recon.announce("PEER:DISCONNECT", this);
-    });
+    this.socket.on("close", this.disconnect);
 
-    this.socket.on("error", (e: Error) => {
-      console.log(e);
-
-      this.recon.announce("PEER:DISCONNECT", this);
-    });
+    this.socket.on("error", this.disconnect);
   }
 
   private initReconHandlers() {
@@ -68,6 +47,13 @@ export class Peer {
       this.incomingQueue.close();
     });
   }
+
+  private disconnect = () => {
+    if (this.disconnected) return;
+
+    this.disconnected = true;
+    this.recon.announce("PEER:DISCONNECT", this);
+  };
 
   public async processEvent(event: PeerEvent): Promise<void> {
     switch (event.type) {
@@ -80,6 +66,7 @@ export class Peer {
 
       case "UNCHOKE":
         this.state.peerChoking = false;
+        this.recon.announce("PEER:UNCHOKE", this);
         console.log("They unchoked us");
 
         return;
@@ -105,16 +92,16 @@ export class Peer {
       case "BITFIELD":
         addPiecesFromBitfield(event.field, this.availablePieces);
 
-        console.log("(I) 📤 INTERESTED");
+        console.log("received a bitfield");
         this.Interested_REQ();
 
         this.recon.announce("PEER:BITFIELD", this);
         return;
 
       case "REQUEST":
-        console.log(
-          `🍒 incoming request: piece=${event.block.pieceIdx} offset=${event.block.offset} length=${event.block.length}`,
-        );
+        // console.log(
+        //   `🍒 incoming request: piece=${event.block.pieceIdx} offset=${event.block.offset} length=${event.block.length}`,
+        // );
 
         if (this.state.amChoking) {
           return;
@@ -128,11 +115,7 @@ export class Peer {
         //
         return;
 
-      case "PIECE":
-        if (this.state.peerChoking) {
-          throw new Error("Received piece while peer is choking");
-        }
-
+      case "PIECE": {
         const pieceKey = `${event.piece.pieceIdx},${event.piece.offset}`;
         const pendingReq = this.pendingRequests.get(pieceKey);
 
@@ -147,15 +130,19 @@ export class Peer {
           throw new Error("Received piece with incorrect length");
         }
 
-        await this.pieceHandler(event.piece, this);
         this.pendingRequests.delete(pieceKey);
 
+        // console.log("Received a block");
+
+        await this.pieceHandler(event.piece, this);
+
         return;
+      }
       case "PORT":
         return;
 
       case "EXTENDED":
-        console.log("Ignore extended req 😂");
+        // console.log("Ignore extended req 😂");
         return;
 
       default:
@@ -168,6 +155,7 @@ export class Peer {
     // console.log(
     //   `📤 REQUEST piece=${req.pieceIdx} offset=${req.offset} length=${req.length}`,
     // );
+    // console.log("📥 QUEUING REQUEST", req.pieceIdx, req.offset);
     const { pieceIdx, offset, length } = req;
     const buf = Buffer.alloc(17);
 
@@ -213,15 +201,18 @@ export class Peer {
   }
 
   private async startReqLoop() {
+    console.log("🚦 REQ LOOP STARTED");
+
     while (true) {
+      // console.log("👀 WAITING");
+
       const req = await this.reqQueue.pop();
+
       if (req === undefined) break;
 
       this.socket.write(req);
 
-      if (req[4] === 0x05) {
-        console.log("😇 SENT BITFIELD");
-      }
+      // console.log("OUTGOING", req[4]);
     }
   }
 
@@ -247,7 +238,7 @@ export class Peer {
   }
 
   private async startIncomingLoop() {
-    while (this) {
+    while (true) {
       const message = await this.incomingQueue.pop();
       if (message === undefined) break;
 
@@ -338,4 +329,19 @@ export class Peer {
 
     this.reqQueue.push(req);
   }
+
+  public get inFlight(): number {
+    return this.pendingRequests.size;
+  }
+}
+
+// dont remove this is for the factory if you use a shared state all peers get the same reference
+function createDefaultPeerState(): PeerState {
+  return {
+    amChoking: true,
+    amInterested: false,
+    peerChoking: true,
+    peerInterested: false,
+    maxInFlight: 10,
+  };
 }

@@ -68,7 +68,7 @@ export class StorageManager {
         await fileHandle.truncate(length);
       }
 
-      console.log("OPENED FILE: ", filePath);
+      // console.log("OPENED FILE: ", filePath);
       this.fileHandles.set(filePath, fileHandle);
     }
   }

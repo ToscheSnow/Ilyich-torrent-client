@@ -3,6 +3,7 @@
   "private": true,
   "devDependencies": {
     "@types/bun": "latest",
+    "@types/react": "^19.3.0",
     "oxlint": "^1.83.0"
   },
   "peerDependencies": {
@@ -10,6 +11,8 @@
   },
   "dependencies": {
     "@datastructures-js/queue": "^4.3.0",
-    "bittorrent-tracker": "^11.2.3"
+    "bittorrent-tracker": "^11.2.3",
+    "ink": "^7.1.1",
+    "react": "^19.3.0"
   }
 }

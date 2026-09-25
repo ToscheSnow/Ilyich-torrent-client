@@ -4,11 +4,12 @@ import type { TorrentEvents } from "../torrent";
 export class Stats {
   private peersConnected = 0;
   private piecesCompleted = 0;
-  private bytesDownloaded = 0;
+  private bytesDownloadedThisSession = 0;
+  private totalBytesHave = 0;
+  private lastSpeedCheckBytes = 0;
 
   constructor(
     private readonly totalPieces: number,
-    private readonly pieceLength: number,
     private recon: Recon<TorrentEvents>,
   ) {
     this.initReconHandlers();
@@ -18,16 +19,9 @@ export class Stats {
     const handlers: unsubscribeFn[] = [];
 
     handlers.push(
-      this.recon.listen("PIECE:VERIFIED", (_, length) => {
+      this.recon.listen("PIECE:COMPLETED", (_, length) => {
         this.piecesCompleted++;
-        this.addDownloadedBytes(length);
-      }),
-    );
-
-    handlers.push(
-      this.recon.listen("PIECE:WRITTEN", (_, length) => {
-        this.piecesCompleted++;
-        this.addDownloadedBytes(length);
+        this.totalBytesHave += length;
       }),
     );
 
@@ -43,6 +37,13 @@ export class Stats {
       }),
     );
 
+    handlers.push(
+      this.recon.listen("BLOCK:RECEIVED", ({ block }) => {
+        this.bytesDownloadedThisSession += block.length;
+        this.totalBytesHave += block.length;
+      }),
+    );
+
     this.recon.once("DOWNLOAD_COMPLETE", () => {
       this.stop();
 
@@ -50,15 +51,43 @@ export class Stats {
     });
   }
 
-  public start() {}
+  public start() {
+    const timer = setInterval(() => {
+      console.log(
+        "Progress ",
+        ((this.piecesCompleted / this.totalPieces) * 100).toFixed(2),
+        "% Connected",
+        this.peersConnected,
+      );
+    }, 1000);
+
+    return timer;
+  }
 
   private stop() {}
 
-  public addDownloadedBytes(bytes: number) {
-    this.bytesDownloaded += bytes;
+  public get downloadedBytes(): number {
+    return this.totalBytesHave;
   }
 
-  public get downloadedBytes(): number {
-    return this.bytesDownloaded;
+  public get piecesCompletedCount(): number {
+    return this.piecesCompleted;
+  }
+
+  public get peersConnectedCount(): number {
+    return this.peersConnected;
+  }
+
+  public get progress(): number {
+    return this.piecesCompleted / this.totalPieces;
+  }
+
+  public speedSince(intervalMs: number): number {
+    const speed =
+      ((this.bytesDownloadedThisSession - this.lastSpeedCheckBytes) /
+        intervalMs) *
+      1000;
+    this.lastSpeedCheckBytes = this.bytesDownloadedThisSession;
+    return speed;
   }
 }

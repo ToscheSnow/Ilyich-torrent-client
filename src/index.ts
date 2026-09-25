@@ -1,5 +1,5 @@
-import { Torrent } from "./torrent";
-import { openFile } from "./utils/input";
+import { Torrent } from "./torrent"
+import { openFile } from "./utils/input"
 
 // file path is args[0]
 const args = process.argv.slice(2);

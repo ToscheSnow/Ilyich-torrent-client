@@ -25,7 +25,11 @@ export class PeerManager {
       verifiedPieces: ReadonlySet<number>;
       totalPieces: number;
     },
-  ) {}
+  ) {
+    this.recon.listen("PEER:DISCONNECT", (peer) => {
+      this.activePeers.delete(peer);
+    });
+  }
 
   // will be called by TrackerManager
   addAddresses(newPeerAddresses: PeerAddress[]) {
@@ -77,6 +81,8 @@ export class PeerManager {
 
       this.activePeers.add(peer);
 
+      this.recon.announce("PEER:CONNECT", peer);
+
       const { verifiedPieces, totalPieces } = this.getVerifiedPieces();
 
       peer.startAfterHandshake(buf, BITFIELD_BUF(verifiedPieces, totalPieces));
@@ -96,6 +102,7 @@ export class PeerManager {
     });
 
     socket.on("close", (hadError) => {
+      this.connectingPeers.delete(peerKey);
       console.log(`🔌 CLOSED ${peerKey}, hadError=${hadError}`);
     });
 

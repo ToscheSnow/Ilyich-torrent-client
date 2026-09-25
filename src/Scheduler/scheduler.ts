@@ -20,7 +20,7 @@ export class Scheduler {
   //
   // every block is requested by a unique peer
   private requestedBlocks: Map<string, Peer> = new Map<string, Peer>();
-
+  private readonly MAX_IN_FLIGHT = 20;
   // process Scheduler events async to avoid callback spaghetti
   private eventQueue: AsyncMessageQueue<SchedulerEvent> =
     new AsyncMessageQueue<SchedulerEvent>();
@@ -40,35 +40,44 @@ export class Scheduler {
     const handlers: (() => void)[] = [];
     handlers.push(
       this.recon.listen("PEER:CONNECT", (peer) =>
-        this.processEvent({ type: "CONNECTED", peer }),
+        this.dispatch({ type: "CONNECTED", peer }),
       ),
     );
 
     handlers.push(
       this.recon.listen("PEER:DISCONNECT", (peer) =>
-        this.processEvent({ type: "DISCONNECT", peer }),
+        this.dispatch({ type: "DISCONNECT", peer }),
       ),
     );
 
     handlers.push(
-      this.recon.listen("PEER:CHOKE", (peer) =>
-        this.processEvent({ type: "UNCHOKE", peer }),
+      this.recon.listen("BLOCK:RECEIVED", (piece) =>
+        this.dispatch({
+          type: "BLOCK_RECEIVED",
+          piece,
+        }),
+      ),
+    );
+
+    handlers.push(
+      this.recon.listen("PEER:UNCHOKE", (peer) =>
+        this.dispatch({ type: "UNCHOKE", peer }),
       ),
     );
 
     handlers.push(
       this.recon.listen("PEER:HAVE", (peer) =>
-        this.processEvent({ type: "HAVE", peer }),
+        this.dispatch({ type: "HAVE", peer }),
       ),
     );
 
     handlers.push(
       this.recon.listen("PEER:BITFIELD", () =>
-        this.processEvent({ type: "BITFIELD" }),
+        this.dispatch({ type: "BITFIELD" }),
       ),
     );
 
-    handlers.push(this.recon.listen("PIECE:WRITTEN", () => this.schedule()));
+    handlers.push(this.recon.listen("PIECE:COMPLETED", () => this.schedule()));
 
     handlers.push(
       this.recon.once("DOWNLOAD_COMPLETE", () => {
@@ -84,12 +93,12 @@ export class Scheduler {
     while (true) {
       const event = await this.eventQueue.pop();
       if (event === undefined) break;
-      await this.processEvent(event);
+      this.processEvent(event);
     }
   }
 
   // reduce Scheduler events to corresponding actions
-  private async processEvent(event: SchedulerEvent) {
+  private processEvent(event: SchedulerEvent) {
     switch (event.type) {
       case "CONNECTED": {
         //
@@ -148,30 +157,56 @@ export class Scheduler {
 
   // schedule a single request to a peer after finding a legal pair returns success
   scheduleOne(): boolean {
+    // console.log("SCHEDULE ONE");
+
     for (const peer of this.peers) {
-      // check for overloaded peer as well
+      // console.log({
+      //   choking: peer.isPeerChoking,
+      //   pieces: peer.pieces.size,
+      // });
+
       if (peer.isPeerChoking) continue;
+      if (peer.inFlight >= this.MAX_IN_FLIGHT) continue;
 
-      const availablePieces = peer.pieces;
-
-      for (const pieceIdx of availablePieces) {
+      for (const pieceIdx of peer.pieces) {
         const neededBlocks = this.pieceManager.getNeededBlocks(pieceIdx);
+
+        // console.log({
+        //   pieceIdx,
+        //   neededBlocks: neededBlocks.length,
+        // });
 
         if (neededBlocks.length === 0) continue;
 
         for (const { pieceIdx, offset, length } of neededBlocks) {
-          if (this.requestedBlocks.has(`${pieceIdx},${offset}`)) continue;
+          const key = `${pieceIdx},${offset}`;
 
-          this.requestedBlocks.set(`${pieceIdx},${offset}`, peer);
+          if (this.requestedBlocks.has(key)) continue;
+
+          // console.log("🚀 REQUESTING", {
+          //   peer,
+          //   pieceIdx,
+          //   offset,
+          //   length,
+          // });
+
+          this.requestedBlocks.set(key, peer);
           peer.request({ pieceIdx, offset, length });
+
           return true;
         }
       }
     }
+
+    // console.log("❌ scheduleOne found nothing");
     return false;
   }
 
   schedule() {
     while (this.scheduleOne()) {}
+  }
+
+  public dispatch(event: SchedulerEvent) {
+    this.eventQueue.push(event);
   }
 }
