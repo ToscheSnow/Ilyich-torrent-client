@@ -48,3 +48,5 @@ export class Recon<E extends Record<string, unknown[]>> {
     return this.listeners.get(event)?.length ?? 0;
   }
 }
+
+export type unsubscribeFn = () => void;

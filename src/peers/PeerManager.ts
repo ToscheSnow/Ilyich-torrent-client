@@ -2,10 +2,11 @@ import { CLIENT_ID_BYTES } from "../client";
 import { handshakeBuf } from "./handshakeBuf";
 import net from "node:net";
 import { verifyHandshake } from "./verifyHandshake";
-import type { SchedulerDispatchCallback } from "../types/schedulerTypes";
 import type { Piece } from "../types/peerTypes";
 import { Peer } from "./peer";
 import { BITFIELD_BUF } from "./bitfield";
+import type { TorrentEvents } from "../torrent";
+import type { Recon } from "../Emitter/Recon";
 
 export type PeerAddress = {
   host: string;
@@ -18,7 +19,7 @@ export class PeerManager {
   constructor(
     private activePeers: Set<Peer>,
     private infoHash: Buffer,
-    private schedulerDispatch: SchedulerDispatchCallback,
+    private recon: Recon<TorrentEvents>,
     private pieceHandler: (piece: Piece, peer: Peer) => Promise<void>,
     private getVerifiedPieces: () => {
       verifiedPieces: ReadonlySet<number>;
@@ -72,7 +73,7 @@ export class PeerManager {
 
       this.connectingPeers.delete(peerKey);
 
-      const peer = new Peer(socket, this.schedulerDispatch, this.pieceHandler);
+      const peer = new Peer(socket, this.recon, this.pieceHandler);
 
       this.activePeers.add(peer);
 

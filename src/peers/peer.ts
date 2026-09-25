@@ -8,8 +8,9 @@ import type {
 } from "../types/peerTypes";
 import { addPiecesFromBitfield } from "./bitfield";
 import { Socket } from "net";
-import type { SchedulerDispatchCallback } from "../types/schedulerTypes";
 import { decodeIncomingPeerMessage } from "./parseEventFromMessage";
+import type { Recon } from "../Emitter/Recon";
+import type { TorrentEvents } from "../torrent";
 
 const defaultPeerState: PeerState = {
   // i am not letting them
@@ -38,30 +39,41 @@ export class Peer {
 
   constructor(
     private socket: Socket,
-    private schedulerDispatch: SchedulerDispatchCallback,
+    private recon: Recon<TorrentEvents>,
     private pieceHandler: (piece: Piece, peer: Peer) => Promise<void>,
     private state: PeerState = defaultPeerState,
   ) {
+    this.initReconHandlers();
     this.startReqLoop();
     this.startIncomingLoop();
 
     this.socket.on("data", this.onData);
 
     this.socket.on("close", () => {
-      this.schedulerDispatch({ type: "DISCONNECT", peer: this });
+      this.recon.announce("PEER:DISCONNECT", this);
     });
 
     this.socket.on("error", (e: Error) => {
       console.log(e);
-      this.schedulerDispatch({ type: "DISCONNECT", peer: this });
+
+      this.recon.announce("PEER:DISCONNECT", this);
     });
   }
 
-  public async handleEvent(event: PeerEvent): Promise<void> {
+  private initReconHandlers() {
+    this.recon.once("DOWNLOAD_COMPLETE", () => {
+      this.socket.destroy();
+      this.pendingRequests.clear();
+      this.reqQueue.close();
+      this.incomingQueue.close();
+    });
+  }
+
+  public async processEvent(event: PeerEvent): Promise<void> {
     switch (event.type) {
       case "CHOKE":
         this.state.peerChoking = true;
-        this.schedulerDispatch({ type: "CHOKE", peer: this });
+        this.recon.announce("PEER:CHOKE", this);
         console.log("They choked us");
 
         return;
@@ -70,7 +82,6 @@ export class Peer {
         this.state.peerChoking = false;
         console.log("They unchoked us");
 
-        this.schedulerDispatch({ type: "UNCHOKE", peer: this });
         return;
 
       case "INTERESTED":
@@ -88,7 +99,7 @@ export class Peer {
 
       case "HAVE":
         this.availablePieces.add(event.pieceId);
-        this.schedulerDispatch({ type: "HAVE", peer: this });
+        this.recon.announce("PEER:HAVE", this);
         return;
 
       case "BITFIELD":
@@ -97,7 +108,7 @@ export class Peer {
         console.log("(I) 📤 INTERESTED");
         this.Interested_REQ();
 
-        this.schedulerDispatch({ type: "BITFIELD", peer: this });
+        this.recon.announce("PEER:BITFIELD", this);
         return;
 
       case "REQUEST":
@@ -152,10 +163,6 @@ export class Peer {
     }
   }
 
-  public setDispatch(dispatch: SchedulerDispatchCallback) {
-    this.schedulerDispatch = dispatch;
-  }
-
   public request(req: BlockRequest): void {
     //if not valid request throw
     // console.log(
@@ -175,6 +182,7 @@ export class Peer {
       request: req,
       sentAt: Date.now(),
     });
+
     this.reqQueue.push(buf);
   }
 
@@ -207,6 +215,7 @@ export class Peer {
   private async startReqLoop() {
     while (true) {
       const req = await this.reqQueue.pop();
+      if (req === undefined) break;
 
       this.socket.write(req);
 
@@ -238,11 +247,13 @@ export class Peer {
   }
 
   private async startIncomingLoop() {
-    while (true) {
+    while (this) {
       const message = await this.incomingQueue.pop();
-      const event = decodeIncomingPeerMessage(message);
+      if (message === undefined) break;
 
-      await this.handleEvent(event);
+      const event = decodeIncomingPeerMessage(message!);
+
+      await this.processEvent(event);
     }
   }
 
@@ -314,5 +325,17 @@ export class Peer {
 
     // console.log(`😈 SENT Have req ${pieceIdx}`);
     this.reqQueue.push(haveBuf);
+  }
+
+  public SEND_PIECE(block: Buffer) {
+    // 4 bytes for length 1 for messge id
+    const req = Buffer.alloc(block.length + 4 + 1);
+
+    req.writeUInt32BE(block.length + 1, 0);
+    // message id for piece request is 7;
+    req[4] = 0x7;
+    req.set(block, 5);
+
+    this.reqQueue.push(req);
   }
 }

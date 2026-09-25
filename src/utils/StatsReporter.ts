@@ -1,72 +1,64 @@
-import type { DownloadStats } from "./DownloadStats";
+import type { Recon, unsubscribeFn } from "../Emitter/Recon";
+import type { TorrentEvents } from "../torrent";
 
-export class StatsReporter {
-  private timer?: ReturnType<typeof setInterval>;
+export class Stats {
+  private peersConnected = 0;
+  private piecesCompleted = 0;
+  private bytesDownloaded = 0;
 
-  private lastBytes = 0;
-  private lastTime = performance.now();
-  private timeRemaining = Infinity;
   constructor(
-    private downloadStats: DownloadStats,
-    private totalPieces: number,
-    private pieceLength: number,
-  ) {}
+    private readonly totalPieces: number,
+    private readonly pieceLength: number,
+    private recon: Recon<TorrentEvents>,
+  ) {
+    this.initReconHandlers();
+  }
 
-  report() {
-    const now = performance.now();
+  private initReconHandlers() {
+    const handlers: unsubscribeFn[] = [];
 
-    const currBytes = this.downloadStats.getDownloadedBytes();
-
-    const elapsedSeconds = (now - this.lastTime) / 1000;
-
-    const bytesPerSecond = (currBytes - this.lastBytes) / elapsedSeconds;
-
-    const mbps = bytesPerSecond / (1024 * 1024);
-
-    this.lastTime = now;
-    this.lastBytes = currBytes;
-
-    const downloadedPieces = this.downloadStats.getCompletedPieces();
-    const pieceProgress = (downloadedPieces / this.totalPieces) * 100;
-    let remainingTIme =
-      ((this.totalPieces - downloadedPieces) * this.pieceLength) /
-      (mbps * 1024 * 1024);
-
-    if (remainingTIme === Infinity) remainingTIme = this.timeRemaining;
-
-    console.log(
-      `Speed ${(mbps * 8).toFixed(2)}Mbps/s | Progress ${downloadedPieces}/${this.totalPieces} downloaded | ${pieceProgress.toFixed(2)}%  |  Connected ${this.downloadStats.peers} `,
+    handlers.push(
+      this.recon.listen("PIECE:VERIFIED", (_, length) => {
+        this.piecesCompleted++;
+        this.addDownloadedBytes(length);
+      }),
     );
 
-    this.timeRemaining = remainingTIme;
+    handlers.push(
+      this.recon.listen("PIECE:WRITTEN", (_, length) => {
+        this.piecesCompleted++;
+        this.addDownloadedBytes(length);
+      }),
+    );
+
+    handlers.push(
+      this.recon.listen("PEER:CONNECT", () => {
+        this.peersConnected++;
+      }),
+    );
+
+    handlers.push(
+      this.recon.listen("PEER:DISCONNECT", () => {
+        this.peersConnected--;
+      }),
+    );
+
+    this.recon.once("DOWNLOAD_COMPLETE", () => {
+      this.stop();
+
+      for (const off of handlers) off();
+    });
   }
 
-  start() {
-    this.report();
+  public start() {}
 
-    this.timer = setInterval(() => {
-      this.report();
-    }, 1000);
+  private stop() {}
+
+  public addDownloadedBytes(bytes: number) {
+    this.bytesDownloaded += bytes;
   }
 
-  stop = () => {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = undefined;
-    }
-
-    console.log("Download completed");
-  };
-
-  getPieceIncrement = () => {
-    this.downloadStats.pieceIncrement();
-  };
-
-  getByteIncrement = (downloadedBytes: number) => {
-    this.downloadStats.addDownloadedBytes(downloadedBytes);
-  };
-
-  get downloadedBytes() {
-    return this.downloadStats.getDownloadedBytes();
+  public get downloadedBytes(): number {
+    return this.bytesDownloaded;
   }
 }

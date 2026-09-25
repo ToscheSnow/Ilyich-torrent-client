@@ -3,8 +3,9 @@ import type { TorrentMetadata } from "../types/metadataTypes";
 import type { BlockRequest, Piece } from "../types/peerTypes";
 import { createHash } from "crypto";
 import type { StorageManager } from "../fileAssembly/StorageManager";
-import type { SchedulerDispatchCallback } from "../types/schedulerTypes";
 import type { Peer } from "../peers/peer";
+import type { Recon } from "../Emitter/Recon";
+import type { TorrentEvents } from "../torrent";
 
 export class PieceManager {
   private totalLength: number;
@@ -13,14 +14,12 @@ export class PieceManager {
   private blocks: Map<string, Buffer> = new Map<string, Buffer>();
   private hashes: Uint8Array;
   private verifiedPieces: Set<number> = new Set<number>();
-  private SchedulerDispatch!: SchedulerDispatchCallback;
   private numPieces: number;
 
   public constructor(
     { pieceHashes, pieceLength, ...meta }: TorrentMetadata,
     private storageManager: StorageManager,
-    private pieceStatIncrement: () => void,
-    private bytesDownloadedIncrement: (downloadedBytes: number) => void,
+    private recon: Recon<TorrentEvents>,
   ) {
     this.pieceLength = pieceLength;
     this.hashes = pieceHashes;
@@ -42,7 +41,7 @@ export class PieceManager {
   public completeDownloadHandler() {
     if (this.verifiedPieces.size !== this.numPieces) return;
 
-    this.SchedulerDispatch({ type: "DOWNLOAD_COMPLETED" });
+    this.recon.announce("DOWNLOAD_COMPLETE");
   }
 
   //no async factory required i realised since torrent class initialises storage manager explicitly
@@ -63,10 +62,6 @@ export class PieceManager {
   //   await pieceManager.initAvailablePieces();
   //   return pieceManager;
   // }
-
-  public setDispatch(dispatch: SchedulerDispatchCallback) {
-    this.SchedulerDispatch = dispatch;
-  }
 
   get pieceCount(): number {
     return Math.ceil(this.totalLength / this.pieceLength);
@@ -138,7 +133,7 @@ export class PieceManager {
     //     `${storedForPiece}/${this.getBlockCount(pieceIdx)} blocks`,
     // );
 
-    this.SchedulerDispatch({ type: "BLOCK_RECEIVED", piece });
+    this.recon.announce("BLOCK:RECEIVED", piece);
 
     if (this.isCompletePiece(pieceIdx)) {
       const assembled = this.assemblePiece(pieceIdx);
@@ -155,6 +150,9 @@ export class PieceManager {
         // );
         await this.storageManager.writePiece(pieceIdx, assembled);
         this.verifiedPieces.add(pieceIdx);
+
+        this.recon.announce("PIECE:WRITTEN", pieceIdx, assembled.length);
+
         this.pieceStatIncrement();
         this.bytesDownloadedIncrement(assembled.length);
         // console.log("Written a piece to disk");
@@ -252,6 +250,8 @@ export class PieceManager {
         this.verifiedPieces.add(pieceIdx);
         this.pieceStatIncrement();
         this.bytesDownloadedIncrement(pieceLen);
+
+        this.recon.announce("PIECE:VERIFIED", pieceIdx, pieceLen);
       }
     };
 

@@ -1,6 +1,8 @@
+import type { Recon } from "../Emitter/Recon";
 import type { Peer } from "../peers/peer";
 import type { PieceManager } from "../Pieces/PieceManager";
 import { AsyncMessageQueue } from "../Queues/MessageQueue";
+import type { TorrentEvents } from "../torrent";
 import type { SchedulerEvent } from "../types/schedulerTypes";
 
 //schedule blocks
@@ -27,36 +29,72 @@ export class Scheduler {
   constructor(
     private pieceManager: PieceManager,
     private peers: Set<Peer>,
-    private downloadFinishTrigger: () => void,
+    private recon: Recon<TorrentEvents>,
   ) {
-    pieceManager.setDispatch(this.dispatch);
-
+    // recon.listen(event, fn)
+    this.initReconHandlers();
     this.eventLoop();
+  }
+
+  private initReconHandlers() {
+    const handlers: (() => void)[] = [];
+    handlers.push(
+      this.recon.listen("PEER:CONNECT", (peer) =>
+        this.processEvent({ type: "CONNECTED", peer }),
+      ),
+    );
+
+    handlers.push(
+      this.recon.listen("PEER:DISCONNECT", (peer) =>
+        this.processEvent({ type: "DISCONNECT", peer }),
+      ),
+    );
+
+    handlers.push(
+      this.recon.listen("PEER:CHOKE", (peer) =>
+        this.processEvent({ type: "UNCHOKE", peer }),
+      ),
+    );
+
+    handlers.push(
+      this.recon.listen("PEER:HAVE", (peer) =>
+        this.processEvent({ type: "HAVE", peer }),
+      ),
+    );
+
+    handlers.push(
+      this.recon.listen("PEER:BITFIELD", () =>
+        this.processEvent({ type: "BITFIELD" }),
+      ),
+    );
+
+    handlers.push(this.recon.listen("PIECE:WRITTEN", () => this.schedule()));
+
+    handlers.push(
+      this.recon.once("DOWNLOAD_COMPLETE", () => {
+        this.requestedBlocks.clear();
+        this.eventQueue.close();
+        for (const off of handlers) off();
+      }),
+    );
   }
 
   // processEventLoop for checking events
   private async eventLoop() {
     while (true) {
-      await this.schedulerEventTransition(await this.eventQueue.pop());
+      const event = await this.eventQueue.pop();
+      if (event === undefined) break;
+      await this.processEvent(event);
     }
   }
 
-  public dispatch = (event: SchedulerEvent) => {
-    this.eventQueue.push(event);
-  };
-
   // reduce Scheduler events to corresponding actions
-  private async schedulerEventTransition(event: SchedulerEvent) {
+  private async processEvent(event: SchedulerEvent) {
     switch (event.type) {
-      case "PEER_CONNECTED": {
+      case "CONNECTED": {
         //
         this.peers.add(event.peer);
         this.schedule();
-        return;
-      }
-      case "DOWNLOAD_COMPLETED": {
-        this.requestedBlocks.clear();
-        this.downloadFinishTrigger();
         return;
       }
       case "UNCHOKE": {
@@ -112,7 +150,7 @@ export class Scheduler {
   scheduleOne(): boolean {
     for (const peer of this.peers) {
       // check for overloaded peer as well
-      if ( peer.isPeerChoking) continue;
+      if (peer.isPeerChoking) continue;
 
       const availablePieces = peer.pieces;
 
@@ -135,9 +173,5 @@ export class Scheduler {
 
   schedule() {
     while (this.scheduleOne()) {}
-  }
-
-  release(block: string) {
-    this.requestedBlocks.delete(block);
   }
 }

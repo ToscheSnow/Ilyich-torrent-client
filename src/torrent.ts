@@ -10,11 +10,24 @@ import type { Peer } from "./peers/peer";
 
 import { CLIENT_ID_BYTES } from "./client";
 import { Tracker } from "./trackers/tracker";
-import { DownloadStats } from "./utils/DownloadStats";
-import { StatsReporter } from "./utils/StatsReporter";
+import { Stats } from "./utils/StatsReporter";
 import { Scheduler } from "./Scheduler/scheduler";
 import type { BencodeDict } from "./types/parserTypes";
 import { getMeta } from "./fileParsing/meta";
+import { Recon } from "./Emitter/Recon";
+import type { PieceInfo } from "./types/peerTypes";
+
+export type TorrentEvents = {
+  "PEER:CONNECT": [Peer];
+  "PEER:DISCONNECT": [Peer];
+  "PEER:CHOKE": [Peer];
+  "PEER:HAVE": [Peer];
+  "PEER:BITFIELD": [Peer];
+  "PIECE:WRITTEN": [number, number];
+  DOWNLOAD_COMPLETE: [];
+  "BLOCK:RECEIVED": [PieceInfo];
+  "PIECE:VERIFIED": [number, number];
+};
 
 export class Torrent {
   private readonly activePeers: Set<Peer> = new Set();
@@ -24,12 +37,13 @@ export class Torrent {
   private readonly scheduler: Scheduler;
   private readonly peerManager: PeerManager;
   private readonly tracker: Tracker;
-  private statsReporter: StatsReporter;
+  private stats: Stats;
 
   private readonly meta;
   private readonly infoHash;
   private readonly peerId = CLIENT_ID_BYTES;
   public totalBytes = 0;
+  private recon = new Recon<TorrentEvents>();
 
   constructor(
     private readonly torrentFile: Buffer,
@@ -44,10 +58,10 @@ export class Torrent {
 
     this.totalBytes = this.getTotalBytes();
 
-    this.statsReporter = new StatsReporter(
-      new DownloadStats(() => this.activePeers.size),
+    this.stats = new Stats(
       this.meta.pieceHashes.length / 20,
       this.meta.pieceLength,
+      this.recon,
     );
 
     this.storageManager = new StorageManager(this.meta, this.downloadDir);
@@ -55,14 +69,13 @@ export class Torrent {
     this.pieceManager = new PieceManager(
       this.meta,
       this.storageManager,
-      this.statsReporter.getPieceIncrement,
-      this.statsReporter.getByteIncrement,
+      this.recon,
     );
 
     this.scheduler = new Scheduler(
       this.pieceManager,
       this.activePeers,
-      this.statsReporter.stop,
+      this.recon,
     );
 
     this.peerManager = new PeerManager(
@@ -70,7 +83,7 @@ export class Torrent {
       // new Set<PeerAddress>(),
       this.infoHash,
       // 10,
-      this.scheduler.dispatch.bind(this.scheduler),
+      this.recon,
       this.pieceManager.receiveBlock.bind(this.pieceManager),
       this.pieceManager.getVerifiedPieces,
     );
@@ -91,7 +104,7 @@ export class Torrent {
 
     await this.announce();
 
-    this.statsReporter.start();
+    this.stats.start();
 
     this.pieceManager.completeDownloadHandler();
   }
@@ -102,8 +115,8 @@ export class Torrent {
       peerId: this.peerId,
       port: 6881,
       uploaded: 0,
-      downloaded: this.statsReporter.downloadedBytes, // should be what you have
-      left: this.totalBytes - this.statsReporter.downloadedBytes,
+      downloaded: this.stats.downloadedBytes, // should be what you have
+      left: this.totalBytes - this.stats.downloadedBytes,
     });
 
     console.log("Sent req to tracker");
