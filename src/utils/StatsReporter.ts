@@ -44,12 +44,10 @@ export class Stats {
       }),
     );
 
-    handlers.push(
-      this.recon.listen("BLOCK:RECEIVED", ({ block }) => {
-        this.bytesDownloadedThisSession += block.length;
-        this.totalBytesHave += block.length;
-      }),
-    );
+    this.recon.listen("BLOCK:RECEIVED", ({ block }) => {
+      this.bytesDownloadedThisSession += block.length;
+      this.totalBytesHave += block.length;
+    });
 
     handlers.push(
       this.recon.listen("BLOCK:UPLOADED", (bytes) => {
@@ -58,6 +56,7 @@ export class Stats {
     );
 
     this.recon.once("DOWNLOAD_COMPLETE", () => {
+      // does nothing at the moment
       this.stop();
 
       for (const off of handlers) off();

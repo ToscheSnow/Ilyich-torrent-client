@@ -45,7 +45,7 @@ export class PieceManager {
     if (this.verifiedPieces.size !== this.numPieces) return;
 
     this.downloadCompleted = true;
-    this.recon.announce("DOWNLOAD_COMPLETE");
+    // this.recon.announce("DOWNLOAD_COMPLETE");
   }
 
   //no async factory required i realised since torrent class initialises storage manager explicitly

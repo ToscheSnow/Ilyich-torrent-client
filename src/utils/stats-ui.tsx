@@ -10,6 +10,11 @@ function formatBytes(n: number): string {
   return `${(n / 1024 ** 2).toFixed(2)} MB`;
 }
 
+function formatMbps(bytesPerSecond: number): string {
+  const megabits = (bytesPerSecond * 8) / 1024 ** 2;
+  return `${megabits.toFixed(2)} Mbps`;
+}
+
 function App({ stats }: { stats: Stats }) {
   const [speed, setSpeed] = useState(0);
 
@@ -28,9 +33,11 @@ function App({ stats }: { stats: Stats }) {
         Progress: {stats.piecesCompletedCount} pieces ({pct}%) —{" "}
         {formatBytes(stats.downloadedBytes)} total
       </Text>
-      <Text color="green">Uploaded {formatBytes(stats.bytesUploaded)} total</Text>
+      <Text color="green">
+        Uploaded {formatBytes(stats.bytesUploaded)} total
+      </Text>
       <Text>
-        Speed: {formatBytes(speed)}/s — Peers: {stats.peersConnectedCount}
+        Speed: {formatMbps(speed)} — Peers: {stats.peersConnectedCount}
       </Text>
     </Box>
   );

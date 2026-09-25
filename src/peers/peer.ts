@@ -61,14 +61,14 @@ export class Peer {
       case "CHOKE":
         this.state.peerChoking = true;
         this.recon.announce("PEER:CHOKE", this);
-        console.log("They choked us");
+        console.log("😨 CHOKE US");
 
         return;
 
       case "UNCHOKE":
         this.state.peerChoking = false;
         this.recon.announce("PEER:UNCHOKE", this);
-        console.log("They unchoked us");
+        console.log("😎 UNCHOKE US");
 
         return;
 
@@ -110,7 +110,7 @@ export class Peer {
         // this is for them to send us a request we will send them the piece which is a buffer
         // the peer manager will coordinate with piece manager to send them the request
         console.log("Received a request for a block");
-        
+
         this.recon.announce(
           "PEER:INCOMING_PIECE_REQUEST",
           { ...event.block },
@@ -211,8 +211,6 @@ export class Peer {
   }
 
   private async startReqLoop() {
-    console.log("🚦 REQ LOOP STARTED");
-
     while (true) {
       // console.log("👀 WAITING");
 
