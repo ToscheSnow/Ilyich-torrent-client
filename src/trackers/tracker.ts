@@ -76,11 +76,10 @@ export class Tracker {
     return url.startsWith("http://") || url.startsWith("https://");
   }
 
-  public get urlsList(): readonly string[] {
-    return this.urls;
-  }
-
-  public async announce(args: TrackerAnnounceArgs): Promise<TrackerResponse[]> {
+  public async announce(
+    args: TrackerAnnounceArgs,
+    onResponse: (res: TrackerResponse) => void,
+  ): Promise<TrackerResponse[]> {
     // send requests to tracker at the same time
 
     // const responses: TrackerResponse[] = [];
@@ -103,7 +102,7 @@ export class Tracker {
     const fetchSingleReq = async (url: string, args: TrackerAnnounceArgs) => {
       try {
         const response = await this.announceTracker(url, args);
-        responses.push(response);
+        onResponse(response);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
 
@@ -112,7 +111,6 @@ export class Tracker {
     };
 
     await Promise.all(this.urls.map((url) => fetchSingleReq(url, args)));
-
     return responses;
   }
 

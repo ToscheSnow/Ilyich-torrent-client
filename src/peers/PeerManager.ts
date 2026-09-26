@@ -151,16 +151,16 @@ export class PeerManager {
 
       const { verifiedPieces, totalPieces } = this.getVerifiedPieces();
 
-      console.log(
-        "🍑 SENT BITFIELD TO PEER:",
-        BITFIELD_BUF(verifiedPieces, totalPieces),
-      );
+      // console.log(
+      //   "🍑 SENT BITFIELD TO PEER:",
+      //   BITFIELD_BUF(verifiedPieces, totalPieces),
+      // );
 
       peer.startAfterHandshake(buf, BITFIELD_BUF(verifiedPieces, totalPieces));
     };
 
     socket.on("connect", () => {
-      console.log(`TCP connected to ${peerKey}, sending handshake`);
+      // console.log(`TCP connected to ${peerKey}, sending handshake`);
 
       socket.write(torrentHandshake);
     });
@@ -174,7 +174,7 @@ export class PeerManager {
 
     socket.on("close", (hadError) => {
       this.connectingPeers.delete(peerKey);
-      console.log(`🔌 CLOSED ${peerKey}, hadError=${hadError}`);
+      // console.log(`🔌 CLOSED ${peerKey}, hadError=${hadError}`);
     });
 
     socket.on("timeout", () => {

@@ -53,6 +53,8 @@ export class Peer {
     if (this.disconnected) return;
 
     this.disconnected = true;
+    console.log("🥺 Disconnected from a peer ");
+    
     this.recon.announce("PEER:DISCONNECT", this);
   };
 

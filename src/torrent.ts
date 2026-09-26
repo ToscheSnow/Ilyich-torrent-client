@@ -103,37 +103,33 @@ export class Torrent {
 
     this.pieceManager.completeDownloadHandler();
 
-    await this.announce(listenPort);
-
-    this.pieceManager.completeDownloadHandler();
-
-    // this.stats.start();
     startStatsUI(this.stats, this.recon);
+
+    await this.announce(listenPort);
   }
 
   private async announce(listenPort: number) {
-    const responses = await this.tracker.announce({
-      infoHash: this.infoHash,
-      peerId: this.peerId,
-      port: listenPort,
-      uploaded: this.stats.bytesUploaded,
-      downloaded: this.stats.downloadedBytes, // should be what you have
-      left: this.totalBytes - this.stats.downloadedBytes,
-    });
-
-    console.log("Sent req to tracker");
-
     let nextInterval = Infinity;
 
-    for (const response of responses) {
-      this.peerManager.addAddresses(response.peers);
+    await this.tracker.announce(
+      {
+        infoHash: this.infoHash,
+        peerId: this.peerId,
+        port: listenPort,
+        uploaded: this.stats.bytesUploaded,
+        downloaded: this.stats.downloadedBytes, // should be what you have
+        left: this.totalBytes - this.stats.downloadedBytes,
+      },
+      (response) => {
+        this.peerManager.addAddresses(response.peers);
 
-      console.log(
-        `Tracker returned ${response.peers.length} peers, interval=${response.interval}`,
-      );
+        console.log(
+          `Tracker returned ${response.peers.length} peers, interval=${response.interval}`,
+        );
 
-      nextInterval = Math.min(nextInterval, response.interval);
-    }
+        nextInterval = Math.min(nextInterval, response.interval);
+      },
+    );
 
     if (nextInterval !== Infinity) {
       setTimeout(() => void this.announce(listenPort), nextInterval * 1000);
