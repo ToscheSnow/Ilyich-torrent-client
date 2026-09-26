@@ -20,7 +20,7 @@ export class Scheduler {
   //
   // every block is requested by a unique peer
   private requestedBlocks: Map<string, Peer> = new Map<string, Peer>();
-  private readonly MAX_IN_FLIGHT = 40;
+  private readonly MAX_IN_FLIGHT = 30;
   // process Scheduler events async to avoid callback spaghetti
   private eventQueue: AsyncMessageQueue<SchedulerEvent> =
     new AsyncMessageQueue<SchedulerEvent>();

@@ -45,6 +45,7 @@ export class PieceManager {
     if (this.verifiedPieces.size !== this.numPieces) return;
 
     this.downloadCompleted = true;
+
     // this.recon.announce("DOWNLOAD_COMPLETE");
   }
 

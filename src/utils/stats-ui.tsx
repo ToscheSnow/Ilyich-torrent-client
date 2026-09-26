@@ -16,15 +16,16 @@ function formatMbps(bytesPerSecond: number): string {
 }
 
 function App({ stats }: { stats: Stats }) {
-  const [speed, setSpeed] = useState(0);
+  const [, forceTick] = useState(0);
 
   useEffect(() => {
     const id = setInterval(() => {
-      setSpeed(stats.speedSince(500));
+      forceTick((t) => t + 1); // always changes -> always re-renders
     }, 500);
     return () => clearInterval(id);
   }, [stats]);
 
+  const speed = stats.speedSince(500);
   const pct = (stats.progress * 100).toFixed(1);
 
   return (
@@ -45,5 +46,5 @@ function App({ stats }: { stats: Stats }) {
 
 export function startStatsUI(stats: Stats, recon: Recon<TorrentEvents>) {
   const { unmount } = render(<App stats={stats} />);
-  recon.once("DOWNLOAD_COMPLETE", () => unmount());
+  // recon.once("DOWNLOAD_COMPLETE", () => unmount());
 }

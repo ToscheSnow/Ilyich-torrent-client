@@ -131,7 +131,7 @@ export class Tracker {
 
     const response = await fetch(url);
 
-    console.log(`URL ${url} Status: ${response.status}`);
+    console.log(`URL ${url.slice(0, 35)} Status: ${response.status}`);
 
     if (!response.ok) {
       const body = await response.text();

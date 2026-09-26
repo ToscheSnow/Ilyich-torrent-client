@@ -42,7 +42,7 @@ export function decodeIncomingPeerMessage(message: Buffer): PeerEvent {
       return { type: "BITFIELD", field: Buffer.from(message.subarray(1)) };
 
     case PEER_MESSAGE_ID.REQUEST:
-      console.log("🥺 INCOMING REQUEST FOR A PIECE");
+      
       //REQUEST has a payload of 12 bytes from 4 each from pieceNum , offset and length
       if (message.length !== 13) throw new Error("Invalid REQUEST message");
       return {

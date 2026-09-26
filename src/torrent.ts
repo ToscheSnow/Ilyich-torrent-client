@@ -92,7 +92,7 @@ export class Torrent {
     this.tracker = new Tracker(decodedTorrent);
   }
 
-  public async start() {
+  public async start(listenPort = 6881) {
     console.log("Starting torrent");
 
     await this.storageManager.initFileHandles();
@@ -103,7 +103,7 @@ export class Torrent {
 
     this.pieceManager.completeDownloadHandler();
 
-    await this.announce();
+    await this.announce(listenPort);
 
     this.pieceManager.completeDownloadHandler();
 
@@ -111,12 +111,12 @@ export class Torrent {
     startStatsUI(this.stats, this.recon);
   }
 
-  private async announce() {
+  private async announce(listenPort: number) {
     const responses = await this.tracker.announce({
       infoHash: this.infoHash,
       peerId: this.peerId,
-      port: 6881,
-      uploaded: 0,
+      port: listenPort,
+      uploaded: this.stats.bytesUploaded,
       downloaded: this.stats.downloadedBytes, // should be what you have
       left: this.totalBytes - this.stats.downloadedBytes,
     });
@@ -136,7 +136,7 @@ export class Torrent {
     }
 
     if (nextInterval !== Infinity) {
-      setTimeout(() => void this.announce(), nextInterval * 1000);
+      setTimeout(() => void this.announce(listenPort), nextInterval * 1000);
     }
   }
 

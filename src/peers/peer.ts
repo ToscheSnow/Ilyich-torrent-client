@@ -41,10 +41,10 @@ export class Peer {
 
   private initReconHandlers() {
     this.recon.once("DOWNLOAD_COMPLETE", () => {
-      this.socket.destroy();
+      // this.socket.destroy();
       this.pendingRequests.clear();
 
-      this.reqQueue.close();
+      // this.reqQueue.close();
       this.incomingQueue.close();
     });
   }
@@ -100,16 +100,14 @@ export class Peer {
         return;
 
       case "REQUEST":
-        // console.log(
-        //   `🍒 incoming request: piece=${event.block.pieceIdx} offset=${event.block.offset} length=${event.block.length}`,
-        // );
+        
+        // console.log("🥺 INCOMING REQUEST FOR A PIECE");
         if (this.state.amChoking) {
           return;
         }
 
         // this is for them to send us a request we will send them the piece which is a buffer
         // the peer manager will coordinate with piece manager to send them the request
-        console.log("Received a request for a block");
 
         this.recon.announce(
           "PEER:INCOMING_PIECE_REQUEST",
