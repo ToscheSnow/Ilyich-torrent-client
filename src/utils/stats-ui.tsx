@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Text, Box, render } from "ink";
+import { memoryUsage, resourceUsage } from "node:process";
 import type { Stats } from "./StatsReporter";
 import type { Recon } from "../Emitter/Recon";
 import type { TorrentEvents } from "../torrent";
@@ -20,13 +21,17 @@ function App({ stats }: { stats: Stats }) {
 
   useEffect(() => {
     const id = setInterval(() => {
-      forceTick((t) => t + 1); // always changes -> always re-renders
+      forceTick((t) => t + 1);
     }, 500);
+
     return () => clearInterval(id);
-  }, [stats]);
+  }, []);
 
   const speed = stats.speedSince(500);
   const pct = (stats.progress * 100).toFixed(1);
+
+  const memory = memoryUsage();
+  const resources = resourceUsage();
 
   return (
     <Box flexDirection="column" borderStyle="round" padding={1}>
@@ -34,12 +39,25 @@ function App({ stats }: { stats: Stats }) {
         Progress: {stats.piecesCompletedCount} pieces ({pct}%) —{" "}
         {formatBytes(stats.downloadedBytes)} total
       </Text>
+
       <Text color="green">
         Uploaded {formatBytes(stats.bytesUploaded)} total
       </Text>
+
       <Text>
-        Speed: {formatMbps(speed)} — Peers: {stats.peersConnectedCount}
+        Speed: {formatMbps(speed)} — Peers: {stats.peersConnectedCount} — CHOKED
+        Peers: {stats.peersChoked}
       </Text>
+
+      <Text>
+        RSS: {formatBytes(memory.rss)}
+        {" — "}
+        Heap: {formatBytes(memory.heapUsed)}
+        {" — "}
+        Buffers: {formatBytes(memory.arrayBuffers)}
+      </Text>
+
+      <Text>Peak RSS: {formatBytes(resources.maxRSS)}</Text>
     </Box>
   );
 }

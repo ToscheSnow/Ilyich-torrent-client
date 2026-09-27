@@ -8,4 +8,5 @@ const downloadPath = args[1] ?? "./download";
 const listenPort = Number(args[2] ?? 6881);
 
 const torrent = new Torrent(openFile(filePath), downloadPath);
+
 torrent.start(listenPort);

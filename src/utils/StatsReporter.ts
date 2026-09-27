@@ -8,6 +8,7 @@ export class Stats {
   private totalBytesHave = 0;
   private lastSpeedCheckBytes = 0;
   private uploadedBytes = 0;
+  private chokedPeers = 0;
 
   constructor(
     private readonly totalPieces: number,
@@ -33,27 +34,32 @@ export class Stats {
     );
 
     handlers.push(
-      this.recon.listen("PEER:CONNECT", () => {
-        this.peersConnected++;
+      this.recon.listen("BLOCK:RECEIVED", ({ block }) => {
+        this.bytesDownloadedThisSession += block.length;
+        this.totalBytesHave += block.length;
       }),
     );
 
-    handlers.push(
-      this.recon.listen("PEER:DISCONNECT", () => {
-        this.peersConnected--;
-      }),
-    );
-
-    this.recon.listen("BLOCK:RECEIVED", ({ block }) => {
-      this.bytesDownloadedThisSession += block.length;
-      this.totalBytesHave += block.length;
+    this.recon.listen("PEER:CONNECT", () => {
+      this.peersConnected++;
+      this.chokedPeers++;
     });
 
-    handlers.push(
-      this.recon.listen("BLOCK:UPLOADED", (bytes) => {
-        this.uploadedBytes += bytes;
-      }),
-    );
+    this.recon.listen("PEER:DISCONNECT", () => {
+      this.peersConnected--;
+    });
+
+    this.recon.listen("BLOCK:UPLOADED", (bytes) => {
+      this.uploadedBytes += bytes;
+    });
+
+    this.recon.listen("PEER:CHOKE", () => {
+      this.chokedPeers++;
+    });
+
+    this.recon.listen("PEER:UNCHOKE", () => {
+      this.chokedPeers--;
+    });
 
     this.recon.once("DOWNLOAD_COMPLETE", () => {
       // does nothing at the moment
@@ -61,19 +67,6 @@ export class Stats {
 
       for (const off of handlers) off();
     });
-  }
-
-  public start() {
-    const timer = setInterval(() => {
-      console.log(
-        "Progress ",
-        ((this.piecesCompleted / this.totalPieces) * 100).toFixed(2),
-        "% Connected",
-        this.peersConnected,
-      );
-    }, 1000);
-
-    return timer;
   }
 
   private stop() {}
@@ -96,6 +89,10 @@ export class Stats {
 
   public get bytesUploaded(): number {
     return this.uploadedBytes;
+  }
+
+  public get peersChoked(): number {
+    return this.chokedPeers;
   }
 
   public speedSince(intervalMs: number): number {

@@ -9,7 +9,7 @@ import { PeerManager } from "./peers/PeerManager";
 import type { Peer } from "./peers/peer";
 
 import { CLIENT_ID_BYTES } from "./client";
-import { Tracker } from "./trackers/tracker";
+import { Tracker, type TrackerAnnounceArgs } from "./trackers/tracker";
 import { Stats } from "./utils/StatsReporter";
 import { Scheduler } from "./Scheduler/scheduler";
 import type { BencodeDict } from "./types/parserTypes";
@@ -96,9 +96,11 @@ export class Torrent {
     console.log("Starting torrent");
 
     await this.storageManager.initFileHandles();
+
     console.log("Storage initialised");
 
     await this.pieceManager.verifyAvailablePieces();
+
     console.log("Available Pieces verified");
 
     this.pieceManager.completeDownloadHandler();
@@ -111,25 +113,24 @@ export class Torrent {
   private async announce(listenPort: number) {
     let nextInterval = Infinity;
 
-    await this.tracker.announce(
-      {
-        infoHash: this.infoHash,
-        peerId: this.peerId,
-        port: listenPort,
-        uploaded: this.stats.bytesUploaded,
-        downloaded: this.stats.downloadedBytes, // should be what you have
-        left: this.totalBytes - this.stats.downloadedBytes,
-      },
-      (response) => {
-        this.peerManager.addAddresses(response.peers);
+    const args: TrackerAnnounceArgs = {
+      infoHash: this.infoHash,
+      peerId: this.peerId,
+      port: listenPort,
+      uploaded: this.stats.bytesUploaded,
+      downloaded: this.stats.downloadedBytes, // should be what you have
+      left: this.totalBytes - this.stats.downloadedBytes,
+    };
 
-        console.log(
-          `Tracker returned ${response.peers.length} peers, interval=${response.interval}`,
-        );
+    await this.tracker.announce(args, (response) => {
+      this.peerManager.addAddresses(response.peers);
 
-        nextInterval = Math.min(nextInterval, response.interval);
-      },
-    );
+      console.log(
+        `Tracker returned ${response.peers.length} peers, interval=${response.interval}`,
+      );
+
+      nextInterval = Math.min(nextInterval, response.interval);
+    });
 
     if (nextInterval !== Infinity) {
       setTimeout(() => void this.announce(listenPort), nextInterval * 1000);

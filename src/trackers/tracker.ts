@@ -79,26 +79,8 @@ export class Tracker {
   public async announce(
     args: TrackerAnnounceArgs,
     onResponse: (res: TrackerResponse) => void,
-  ): Promise<TrackerResponse[]> {
+  ) {
     // send requests to tracker at the same time
-
-    // const responses: TrackerResponse[] = [];
-
-    // for (const url of this.urls) {
-    //   try {
-    //     const response = await this.announceTracker(url, args);
-    //     responses.push(response);
-    //   } catch (error) {
-    //     const message = error instanceof Error ? error.message : String(error);
-
-    //     console.error(`Tracker failed: ${url} — ${message}`);
-    //   }
-    // }
-
-    // return responses;
-
-    const responses: TrackerResponse[] = [];
-
     const fetchSingleReq = async (url: string, args: TrackerAnnounceArgs) => {
       try {
         const response = await this.announceTracker(url, args);
@@ -111,7 +93,6 @@ export class Tracker {
     };
 
     await Promise.all(this.urls.map((url) => fetchSingleReq(url, args)));
-    return responses;
   }
 
   private async announceTracker(

@@ -111,7 +111,7 @@ export class PeerManager {
     const peerKey = `${host}:${port}`;
     if (this.connectingPeers.has(peerKey)) return;
 
-    // console.log(`Attempting TCP connection to ${host}:${port}`);
+    console.log(`Attempting TCP connection to ${host}:${port}`);
 
     this.connectingPeers.add(peerKey);
 
@@ -160,7 +160,7 @@ export class PeerManager {
     };
 
     socket.on("connect", () => {
-      // console.log(`TCP connected to ${peerKey}, sending handshake`);
+      console.log(`TCP connected to ${peerKey}, sending handshake`);
 
       socket.write(torrentHandshake);
     });
@@ -174,7 +174,7 @@ export class PeerManager {
 
     socket.on("close", (hadError) => {
       this.connectingPeers.delete(peerKey);
-      // console.log(`🔌 CLOSED ${peerKey}, hadError=${hadError}`);
+      console.log(`🔌 CLOSED ${peerKey}, hadError=${hadError}`);
     });
 
     socket.on("timeout", () => {

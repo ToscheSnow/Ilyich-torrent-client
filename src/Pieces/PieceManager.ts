@@ -36,6 +36,9 @@ export class PieceManager {
 
     this.numPieces = Math.ceil(this.totalLength / pieceLength);
 
+    console.log("Piece length:", this.pieceLength);
+    console.log("Piece count:", this.numPieces);
+
     this.completeDownloadHandler();
   }
 
@@ -244,7 +247,7 @@ export class PieceManager {
       const pieceLen = this.getPieceLength(pieceIdx);
       const pieceBuf: Buffer = await this.storageManager.readBlock(
         pieceIdx,
-        this.getPieceLength(pieceIdx),
+        pieceLen,
       );
 
       if (

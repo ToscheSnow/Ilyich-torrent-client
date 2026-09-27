@@ -54,7 +54,7 @@ export class Peer {
 
     this.disconnected = true;
     console.log("🥺 Disconnected from a peer ");
-    
+
     this.recon.announce("PEER:DISCONNECT", this);
   };
 
@@ -102,7 +102,6 @@ export class Peer {
         return;
 
       case "REQUEST":
-        
         // console.log("🥺 INCOMING REQUEST FOR A PIECE");
         if (this.state.amChoking) {
           return;
@@ -165,7 +164,6 @@ export class Peer {
     // console.log(
     //   `📤 REQUEST piece=${req.pieceIdx} offset=${req.offset} length=${req.length}`,
     // );
-    // console.log("📥 QUEUING REQUEST", req.pieceIdx, req.offset);
     const { pieceIdx, offset, length } = req;
     const buf = Buffer.alloc(17);
 
@@ -212,8 +210,6 @@ export class Peer {
 
   private async startReqLoop() {
     while (true) {
-      // console.log("👀 WAITING");
-
       const req = await this.reqQueue.pop();
 
       if (req === undefined) break;
