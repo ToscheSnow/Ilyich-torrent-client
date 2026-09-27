@@ -20,7 +20,7 @@ export class Scheduler {
   //
   // every block is requested by a unique peer
   private requestedBlocks: Map<string, Peer> = new Map<string, Peer>();
-  private readonly MAX_IN_FLIGHT = 10;
+  private readonly MAX_IN_FLIGHT = 100;
   // process Scheduler events async to avoid callback spaghetti
   private eventQueue: AsyncMessageQueue<SchedulerEvent> =
     new AsyncMessageQueue<SchedulerEvent>();
@@ -79,13 +79,11 @@ export class Scheduler {
 
     handlers.push(this.recon.listen("PIECE:COMPLETED", () => this.schedule()));
 
-    handlers.push(
-      this.recon.once("DOWNLOAD_COMPLETE", () => {
-        this.requestedBlocks.clear();
-        this.eventQueue.close();
-        for (const off of handlers) off();
-      }),
-    );
+    this.recon.once("DOWNLOAD_COMPLETE", () => {
+      this.requestedBlocks.clear();
+      this.eventQueue.close();
+      for (const off of handlers) off();
+    });
   }
 
   // processEventLoop for checking events

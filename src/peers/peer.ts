@@ -44,16 +44,21 @@ export class Peer {
       // this.socket.destroy();
       this.pendingRequests.clear();
 
-      // this.reqQueue.close();
-      this.incomingQueue.close();
+      this.reqQueue.close();
+      // this.incomingQueue.close();
     });
   }
 
   private disconnect = () => {
     if (this.disconnected) return;
-
     this.disconnected = true;
-    console.log("🥺 Disconnected from a peer ");
+    // console.log("🥺 Disconnected from a peer ");
+
+    this.pendingRequests.clear();
+    this.reqQueue.close();
+    this.incomingQueue.close();
+    this.socket.destroy();
+    this.socket.removeAllListeners();
 
     this.recon.announce("PEER:DISCONNECT", this);
   };
@@ -63,19 +68,19 @@ export class Peer {
       case "CHOKE":
         this.state.peerChoking = true;
         this.recon.announce("PEER:CHOKE", this);
-        console.log("😨 CHOKE US");
+        // console.log("😨 CHOKE US");
 
         return;
 
       case "UNCHOKE":
         this.state.peerChoking = false;
         this.recon.announce("PEER:UNCHOKE", this);
-        console.log("😎 UNCHOKE US");
+        // console.log("😎 UNCHOKE US");
 
         return;
 
       case "INTERESTED":
-        console.log("(I) They are interested");
+        // console.log("(I) They are interested");
 
         this.state.peerInterested = true;
         this.state.amChoking = false;
@@ -95,7 +100,7 @@ export class Peer {
       case "BITFIELD":
         addPiecesFromBitfield(event.field, this.availablePieces);
 
-        console.log("received a bitfield");
+        // console.log("received a bitfield");
         this.Interested_REQ();
 
         this.recon.announce("PEER:BITFIELD", this);

@@ -5,7 +5,7 @@ import type { Stats } from "./StatsReporter";
 import type { Recon } from "../Emitter/Recon";
 import type { TorrentEvents } from "../torrent";
 
-function formatBytes(n: number): string {
+export function formatBytes(n: number): string {
   if (n < 1024) return `${n.toFixed(0)} B`;
   if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / 1024 ** 2).toFixed(2)} MB`;
@@ -19,15 +19,17 @@ function formatMbps(bytesPerSecond: number): string {
 function App({ stats }: { stats: Stats }) {
   const [, forceTick] = useState(0);
 
+  const delayMs = 250;
+
   useEffect(() => {
     const id = setInterval(() => {
       forceTick((t) => t + 1);
-    }, 500);
+    }, delayMs);
 
     return () => clearInterval(id);
   }, []);
 
-  const speed = stats.speedSince(500);
+  const speed = stats.speedSince(delayMs);
   const pct = (stats.progress * 100).toFixed(1);
 
   const memory = memoryUsage();
@@ -35,26 +37,30 @@ function App({ stats }: { stats: Stats }) {
 
   return (
     <Box flexDirection="column" borderStyle="round" padding={1}>
-      <Text color="green">
+      <Text color={"whiteBright"}>
         Progress: {stats.piecesCompletedCount} pieces ({pct}%) —{" "}
         {formatBytes(stats.downloadedBytes)} total
       </Text>
 
-      <Text color="green">
+      <Text color="redBright">
         Uploaded {formatBytes(stats.bytesUploaded)} total
       </Text>
 
-      <Text>
+      <Text color={"magentaBright"}>
         Speed: {formatMbps(speed)} — Peers: {stats.peersConnectedCount} — CHOKED
         Peers: {stats.peersChoked}
       </Text>
 
-      <Text>
+      <Text color={"yellow"}>
         RSS: {formatBytes(memory.rss)}
         {" — "}
         Heap: {formatBytes(memory.heapUsed)}
+      </Text>
+
+      <Text>
+        External: {formatBytes(memory.external)}
         {" — "}
-        Buffers: {formatBytes(memory.arrayBuffers)}
+        ArrayBuffers: {formatBytes(memory.arrayBuffers)}
       </Text>
 
       <Text>Peak RSS: {formatBytes(resources.maxRSS)}</Text>

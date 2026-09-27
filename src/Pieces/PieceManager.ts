@@ -6,6 +6,7 @@ import type { StorageManager } from "../fileAssembly/StorageManager";
 import type { Peer } from "../peers/peer";
 import type { Recon } from "../Emitter/Recon";
 import type { TorrentEvents } from "../torrent";
+import { formatBytes } from "../utils/stats-ui"
 
 export class PieceManager {
   private totalLength: number;
@@ -36,7 +37,7 @@ export class PieceManager {
 
     this.numPieces = Math.ceil(this.totalLength / pieceLength);
 
-    console.log("Piece length:", this.pieceLength);
+    console.log("Piece length:", formatBytes(this.pieceLength));
     console.log("Piece count:", this.numPieces);
 
     this.completeDownloadHandler();
@@ -49,7 +50,7 @@ export class PieceManager {
 
     this.downloadCompleted = true;
 
-    // this.recon.announce("DOWNLOAD_COMPLETE");
+    this.recon.announce("DOWNLOAD_COMPLETE");
   }
 
   //no async factory required i realised since torrent class initialises storage manager explicitly
@@ -196,12 +197,12 @@ export class PieceManager {
   }
 
   private assemblePiece(pieceIdx: number): Buffer {
-    let buf = Buffer.alloc(0);
+    const buf = Buffer.alloc(this.getPieceLength(pieceIdx));
     const blocks = this.getBlockCount(pieceIdx);
 
     for (let i = 0; i < blocks; i++) {
-      const key = `${pieceIdx},${i * BLOCK_SIZE}`;
-      buf = Buffer.concat([buf, this.blocks.get(key)!]);
+      const block = this.blocks.get(`${pieceIdx},${i * BLOCK_SIZE}`)!;
+      buf.set(block, i * BLOCK_SIZE);
     }
 
     return buf;
@@ -312,4 +313,8 @@ export class PieceManager {
 
     return this.storageManager.readBlock(pieceIdx, length, offset);
   };
+
+  public get pendingBlockCount(): number {
+    return this.blocks.size;
+  }
 }
