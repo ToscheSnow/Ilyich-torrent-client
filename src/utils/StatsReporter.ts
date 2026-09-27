@@ -1,4 +1,5 @@
 import type { Recon, unsubscribeFn } from "../Emitter/Recon";
+import type { Peer } from "../peers/peer";
 import type { TorrentEvents } from "../torrent";
 
 export class Stats {
@@ -8,7 +9,7 @@ export class Stats {
   private totalBytesHave = 0;
   private lastSpeedCheckBytes = 0;
   private uploadedBytes = 0;
-  private chokedPeers = 0;
+  private chokedPeers = new Set<Peer>();
 
   constructor(
     private readonly totalPieces: number,
@@ -42,23 +43,23 @@ export class Stats {
 
     this.recon.listen("PEER:CONNECT", () => {
       this.peersConnected++;
-      this.chokedPeers++;
     });
 
-    this.recon.listen("PEER:DISCONNECT", () => {
+    this.recon.listen("PEER:DISCONNECT", (peer) => {
       this.peersConnected--;
+      this.chokedPeers.delete(peer);
     });
 
     this.recon.listen("BLOCK:UPLOADED", (bytes) => {
       this.uploadedBytes += bytes;
     });
 
-    this.recon.listen("PEER:CHOKE", () => {
-      this.chokedPeers++;
+    this.recon.listen("PEER:CHOKE", (peer) => {
+      this.chokedPeers.add(peer);
     });
 
-    this.recon.listen("PEER:UNCHOKE", () => {
-      this.chokedPeers--;
+    this.recon.listen("PEER:UNCHOKE", (peer) => {
+      this.chokedPeers.delete(peer);
     });
 
     this.recon.once("DOWNLOAD_COMPLETE", () => {
@@ -92,7 +93,7 @@ export class Stats {
   }
 
   public get peersChoked(): number {
-    return this.chokedPeers;
+    return this.chokedPeers.size;
   }
 
   public speedSince(intervalMs: number): number {
