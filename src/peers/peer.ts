@@ -26,6 +26,7 @@ export class Peer {
     private socket: Socket,
     private recon: Recon<TorrentEvents>,
     private pieceHandler: (piece: Piece, peer: Peer) => Promise<void>,
+    private totalPieces: number,
     private state: PeerState = createDefaultPeerState(),
   ) {
     this.initReconHandlers();
@@ -95,6 +96,10 @@ export class Peer {
       case "HAVE":
         this.availablePieces.add(event.pieceId);
         this.recon.announce("PEER:HAVE", this);
+
+        if (this.availablePieces.size === this.totalPieces) {
+          this.recon.announce("SEEDER:CONNECT", this);
+        }
         return;
 
       case "BITFIELD":
@@ -104,6 +109,10 @@ export class Peer {
         this.Interested_REQ();
 
         this.recon.announce("PEER:BITFIELD", this);
+
+        if (this.availablePieces.size === this.totalPieces) {
+          this.recon.announce("SEEDER:CONNECT", this);
+        }
         return;
 
       case "REQUEST":

@@ -51,51 +51,58 @@ export class PeerManager {
     });
   }
 
-  startListening(port: number) {
-    const server = net.createServer((socket) => {
-      const ourHandshake = handshakeBuf(this.infoHash, CLIENT_ID_BYTES);
-      let buf = Buffer.alloc(0);
+  // startListening(port: number) {
+  //   const server = net.createServer((socket) => {
+  //     const ourHandshake = handshakeBuf(this.infoHash, CLIENT_ID_BYTES);
+  //     let buf = Buffer.alloc(0);
 
-      const onHandshake = (data: Buffer) => {
-        buf = Buffer.concat([buf, data]);
-        if (buf.length < 68) return;
+  //     const onHandshake = (data: Buffer) => {
+  //       buf = Buffer.concat([buf, data]);
+  //       if (buf.length < 68) return;
 
-        const message = buf.subarray(0, 68);
-        buf = buf.subarray(68);
+  //       const message = buf.subarray(0, 68);
+  //       buf = buf.subarray(68);
 
-        const { isSuccessful } = verifyHandshake(ourHandshake, message);
-        if (!isSuccessful) {
-          socket.destroy();
-          return;
-        }
+  //       const { isSuccessful } = verifyHandshake(ourHandshake, message);
+  //       if (!isSuccessful) {
+  //         socket.destroy();
+  //         return;
+  //       }
 
-        console.log(
-          "🤝 INCOMING peer handshake from",
-          socket.remoteAddress,
-          socket.remotePort,
-        );
+  //       console.log(
+  //         "🤝 INCOMING peer handshake from",
+  //         socket.remoteAddress,
+  //         socket.remotePort,
+  //       );
 
-        socket.off("data", onHandshake);
-        socket.write(ourHandshake); // reply with our own handshake
+  //       socket.off("data", onHandshake);
+  //       socket.write(ourHandshake); // reply with our own handshake
 
-        const peer = new Peer(socket, this.recon, this.pieceHandler);
-        this.activePeers.add(peer);
-        this.recon.announce("PEER:CONNECT", peer);
+  //       const { verifiedPieces, totalPieces } = this.getVerifiedPieces();
 
-        const { verifiedPieces, totalPieces } = this.getVerifiedPieces();
-        peer.startAfterHandshake(
-          buf,
-          BITFIELD_BUF(verifiedPieces, totalPieces),
-        );
-      };
+  //       const peer = new Peer(
+  //         socket,
+  //         this.recon,
+  //         this.pieceHandler,
+  //         totalPieces,
+  //       );
 
-      socket.on("data", onHandshake);
-      socket.on("error", () => socket.destroy());
-    });
+  //       this.activePeers.add(peer);
+  //       this.recon.announce("PEER:CONNECT", peer);
 
-    server.listen(port, () => console.log(`👂 Listening on ${port}`));
-    return server;
-  }
+  //       peer.startAfterHandshake(
+  //         buf,
+  //         BITFIELD_BUF(verifiedPieces, totalPieces),
+  //       );
+  //     };
+
+  //     socket.on("data", onHandshake);
+  //     socket.on("error", () => socket.destroy());
+  //   });
+
+  //   server.listen(port, () => console.log(`👂 Listening on ${port}`));
+  //   return server;
+  // }
 
   // will be called by TrackerManager
   addAddresses(newPeerAddresses: PeerAddress[]) {
@@ -143,13 +150,13 @@ export class PeerManager {
 
       this.connectingPeers.delete(peerKey);
 
-      const peer = new Peer(socket, this.recon, this.pieceHandler);
+      const { verifiedPieces, totalPieces } = this.getVerifiedPieces();
+
+      const peer = new Peer(socket, this.recon, this.pieceHandler, totalPieces);
 
       this.activePeers.add(peer);
 
       this.recon.announce("PEER:CONNECT", peer);
-
-      const { verifiedPieces, totalPieces } = this.getVerifiedPieces();
 
       // console.log(
       //   "🍑 SENT BITFIELD TO PEER:",

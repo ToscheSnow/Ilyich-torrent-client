@@ -31,6 +31,7 @@ export type TorrentEvents = {
   "PEER:INCOMING_PIECE_REQUEST": [BlockRequest, Peer];
   "BLOCK:UPLOADED": [number];
   "PIECE:EXISTING": [number];
+  "SEEDER:CONNECT": [Peer];
 };
 
 export class Torrent {

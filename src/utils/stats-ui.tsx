@@ -42,28 +42,30 @@ function App({ stats }: { stats: Stats }) {
         {formatBytes(stats.downloadedBytes)} total
       </Text>
 
-      <Text color="redBright">
+      <Text color="green">
         Uploaded {formatBytes(stats.bytesUploaded)} total
       </Text>
 
-      <Text color={"magentaBright"}>
-        Speed: {formatMbps(speed)} — Peers: {stats.peersConnectedCount} — CHOKED
-        Peers: {stats.peersChoked}
-      </Text>
+      <>
+        <Text color="whiteBright">Speed: {formatMbps(speed)}</Text>
+        <Text color="whiteBright">Peers: {stats.peersConnectedCount}</Text>
+        <Text color="whiteBright">Choked Peers: {stats.peersChoked}</Text>
+        <Text color="whiteBright">Seeders: {stats.seedPeers}</Text>
+      </>
 
-      <Text color={"yellow"}>
+      <Text color={"yellowBright"}>
         RSS: {formatBytes(memory.rss)}
         {" — "}
         Heap: {formatBytes(memory.heapUsed)}
       </Text>
 
-      <Text>
+      {/* <Text>
         External: {formatBytes(memory.external)}
         {" — "}
         ArrayBuffers: {formatBytes(memory.arrayBuffers)}
       </Text>
 
-      <Text>Peak RSS: {formatBytes(resources.maxRSS)}</Text>
+      <Text>Peak RSS: {formatBytes(resources.maxRSS)}</Text> */}
     </Box>
   );
 }

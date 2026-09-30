@@ -10,6 +10,7 @@ export class Stats {
   private lastSpeedCheckBytes = 0;
   private uploadedBytes = 0;
   private chokedPeers = new Set<Peer>();
+  private seeders = new Set<Peer>();
 
   constructor(
     private readonly totalPieces: number,
@@ -48,6 +49,7 @@ export class Stats {
     this.recon.listen("PEER:DISCONNECT", (peer) => {
       this.peersConnected--;
       this.chokedPeers.delete(peer);
+      this.seeders.delete(peer);
     });
 
     this.recon.listen("BLOCK:UPLOADED", (bytes) => {
@@ -60,6 +62,10 @@ export class Stats {
 
     this.recon.listen("PEER:UNCHOKE", (peer) => {
       this.chokedPeers.delete(peer);
+    });
+
+    this.recon.listen("SEEDER:CONNECT", (peer) => {
+      this.seeders.add(peer);
     });
 
     this.recon.once("DOWNLOAD_COMPLETE", () => {
@@ -103,5 +109,9 @@ export class Stats {
       1000;
     this.lastSpeedCheckBytes = this.bytesDownloadedThisSession;
     return speed;
+  }
+
+  public get seedPeers(): number {
+    return this.seeders.size;
   }
 }
