@@ -11,8 +11,12 @@ import { Socket } from "net";
 import { decodeIncomingPeerMessage } from "./parseEventFromMessage";
 import type { Recon } from "../Emitter/Recon";
 import type { TorrentEvents } from "../torrent";
+import { normalizeAddr } from "../utils/normaliseAddr";
 
 export class Peer {
+  private remoteAddress;
+  private port;
+
   private buf: Buffer = Buffer.alloc(0);
   private availablePieces: Set<number> = new Set<number>();
   private disconnected = false;
@@ -32,6 +36,9 @@ export class Peer {
     this.initReconHandlers();
     this.startReqLoop();
     this.startIncomingLoop();
+
+    this.remoteAddress = normalizeAddr(this.socket.remoteAddress) ?? "unknown";
+    this.port = this.socket.remotePort ?? 0;
 
     this.socket.on("data", this.onData);
 
@@ -53,7 +60,7 @@ export class Peer {
   private disconnect = () => {
     if (this.disconnected) return;
     this.disconnected = true;
-    // console.log("🥺 Disconnected from a peer ");
+    console.log(`🌩️ Disconnected from peer ${this.remoteAddress}:${this.port}`);
 
     this.pendingRequests.clear();
     this.reqQueue.close();

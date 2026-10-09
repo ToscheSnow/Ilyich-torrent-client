@@ -6,7 +6,7 @@ import type { StorageManager } from "../fileAssembly/StorageManager";
 import type { Peer } from "../peers/peer";
 import type { Recon } from "../Emitter/Recon";
 import type { TorrentEvents } from "../torrent";
-import { formatBytes } from "../utils/stats-ui"
+import { formatBytes } from "../utils/stats-ui";
 
 export class PieceManager {
   private totalLength: number;
@@ -241,7 +241,7 @@ export class PieceManager {
   public async verifyAvailablePieces() {
     //benchmark
 
-    const CONCURRENT_READS = 32;
+    const CONCURRENT_READS = 64;
 
     // worker function to check and verify written pieces
     const readAndVerifyPiece = async (pieceIdx: number) => {

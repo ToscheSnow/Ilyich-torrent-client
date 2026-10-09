@@ -7,6 +7,7 @@ import { Peer } from "./peer";
 import { BITFIELD_BUF } from "./bitfield";
 import type { TorrentEvents } from "../torrent";
 import type { Recon } from "../Emitter/Recon";
+import { normalizeAddr } from "../utils/normaliseAddr";
 
 export type PeerAddress = {
   host: string;
@@ -144,11 +145,9 @@ export class PeerManager {
         return;
       }
 
-      // console.log("🤔 Connected to a peer: ", host, ":", port);
+      console.log(`🧩 Connected to a peer ${normalizeAddr(host)}:${port}`);
 
       socket.off("data", onHandshake);
-
-      this.connectingPeers.delete(peerKey);
 
       const { verifiedPieces, totalPieces } = this.getVerifiedPieces();
 
@@ -167,7 +166,7 @@ export class PeerManager {
     };
 
     socket.on("connect", () => {
-      console.log(`TCP connected to ${peerKey}, sending handshake`);
+      // console.log(`TCP connected to ${peerKey}, sending handshake`);
 
       socket.write(torrentHandshake);
     });

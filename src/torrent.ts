@@ -115,7 +115,7 @@ export class Torrent {
     await this.announce(listenPort);
   }
 
-  private async announce(listenPort: number) {
+  private async announce(listenPort: number, trackerAnnounceInterval = 1 * 60) {
     let nextInterval = Infinity;
 
     const args: TrackerAnnounceArgs = {
@@ -138,7 +138,10 @@ export class Torrent {
     });
 
     if (nextInterval !== Infinity) {
-      setTimeout(() => void this.announce(listenPort), nextInterval * 1000);
+      setTimeout(
+        () => void this.announce(listenPort),
+        trackerAnnounceInterval * 1000,
+      );
     }
   }
 
