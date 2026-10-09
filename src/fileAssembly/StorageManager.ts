@@ -109,7 +109,7 @@ export class StorageManager {
 
   async readBlock(
     pieceIdx: number,
-    pieceLength: number,
+    readLength: number,
     blockOffset = 0,
   ): Promise<Buffer> {
     // piece
@@ -121,11 +121,11 @@ export class StorageManager {
     // file c 200 250
     // file d 250 900
 
-    const buf = Buffer.alloc(pieceLength);
+    const buf = Buffer.alloc(readLength);
 
     // coordinates of the piece in global torrent bytes
     const pieceOffset = pieceIdx * this.pieceLength + blockOffset;
-    const pieceEnd = pieceOffset + pieceLength;
+    const pieceEnd = pieceOffset + readLength;
 
     // half open intervals [ ) for files and torrents
     for (const {

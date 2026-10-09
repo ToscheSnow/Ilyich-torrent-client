@@ -12,3 +12,30 @@ export function parsePeerAddress(peers: Uint8Array): PeerAddress[] {
 
   return result;
 }
+
+export function parseCompactIPv6Peers(peers: Uint8Array): PeerAddress[] {
+  if (peers.length % 18 !== 0) {
+    throw new Error("Invalid compact IPv6 peers length");
+  }
+
+  const buf = Buffer.from(peers.buffer, peers.byteOffset, peers.byteLength);
+
+  const result: PeerAddress[] = [];
+
+  for (let offset = 0; offset < buf.length; offset += 18) {
+    const groups: string[] = [];
+
+    for (let i = 0; i < 16; i += 2) {
+      groups.push(buf.readUInt16BE(offset + i).toString(16));
+    }
+
+    const host = groups.join(":");
+    const port = buf.readUInt16BE(offset + 16);
+
+    if (port === 0) continue;
+
+    result.push({ host, port });
+  }
+
+  return result;
+}

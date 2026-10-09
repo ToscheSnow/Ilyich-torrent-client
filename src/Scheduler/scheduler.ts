@@ -155,8 +155,6 @@ export class Scheduler {
 
   // schedule a single request to a peer after finding a legal pair returns success
   scheduleOne(): boolean {
-    // console.log("SCHEDULE ONE");
-
     for (const peer of this.peers) {
       // console.log({
       //   choking: peer.isPeerChoking,

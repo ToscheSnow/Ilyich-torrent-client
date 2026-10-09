@@ -1,7 +1,10 @@
 import type { BencodeDict } from "../types/parserTypes";
 import type { PeerAddress } from "../peers/PeerManager";
 import { BencodeDecoder } from "../fileParsing/parserDecoder";
-import { parsePeerAddress } from "../fileParsing/parsePeerAddress";
+import {
+  parseCompactIPv6Peers,
+  parsePeerAddress,
+} from "../fileParsing/parsePeerAddress";
 import { trackerURL } from "./trackerURL";
 
 export type TrackerResponse = {
@@ -136,6 +139,7 @@ export class Tracker {
     }
 
     const peers = decoded["peers"];
+    const peers6 = decoded["peers6"];
 
     // trackers are supposed to honour compact=1 and return peers as a
     // single byte string - but some dont, they often bencode an EMPTY swarm as
@@ -158,6 +162,8 @@ export class Tracker {
           port: peerDict["port"] as number,
         };
       });
+    } else if (peers6 instanceof Uint8Array) {
+      parsedPeers = parseCompactIPv6Peers(peers6);
     } else {
       throw new Error("Tracker response has an unrecognized peers format");
     }

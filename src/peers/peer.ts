@@ -196,24 +196,26 @@ export class Peer {
     this.reqQueue.push(buf);
   }
 
-  public cancelReq(req: BlockRequest): void {
-    const { pieceIdx, offset, length } = req;
-    //if not valid request throw
-    const buf = Buffer.alloc(17);
+  // cancel isnt used yet of now
 
-    // 13 bytes always in hex for cancel request
-    buf.writeUInt32BE(13, 0); // length
+  // public cancelReq(req: BlockRequest): void {
+  //   const { pieceIdx, offset, length } = req;
+  //   //if not valid request throw
+  //   const buf = Buffer.alloc(17);
 
-    // message id 8 for canceling a request
-    buf[4] = 0x08; //
+  //   // 13 bytes always in hex for cancel request
+  //   buf.writeUInt32BE(13, 0); // length
 
-    buf.writeUInt32BE(pieceIdx, 5);
-    buf.writeUInt32BE(offset, 9);
-    buf.writeUInt32BE(length, 13);
+  //   // message id 8 for canceling a request
+  //   buf[4] = 0x08; //
 
-    this.pendingRequests.delete(`${req.pieceIdx},${req.offset}`);
-    this.reqQueue.push(buf);
-  }
+  //   buf.writeUInt32BE(pieceIdx, 5);
+  //   buf.writeUInt32BE(offset, 9);
+  //   buf.writeUInt32BE(length, 13);
+
+  //   this.pendingRequests.delete(`${req.pieceIdx},${req.offset}`);
+  //   this.reqQueue.push(buf);
+  // }
 
   public Interested_REQ(): void {
     const buf = Buffer.from([0x00, 0x00, 0x00, 0x01, 0x02]);

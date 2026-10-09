@@ -113,9 +113,9 @@ export class PeerManager {
     // trigger connect to new peers
   }
 
-  connectPeer(peerAddress: PeerAddress) {
-    const { host, port } = peerAddress;
+  connectPeer({ host, port }: PeerAddress) {
     const peerKey = `${host}:${port}`;
+
     if (this.connectingPeers.has(peerKey)) return;
 
     // console.log(`Attempting TCP connection to ${host}:${port}`);
