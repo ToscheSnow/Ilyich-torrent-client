@@ -58,6 +58,8 @@ export class Torrent {
 
     const decodedTorrent = decoder.parse() as BencodeDict;
 
+    // console.log(decodedTorrent);
+
     this.meta = getMeta(decodedTorrent);
     this.infoHash = Buffer.from(this.meta.infoHash);
 
@@ -105,6 +107,8 @@ export class Torrent {
     console.log("Available Pieces verified");
 
     this.pieceManager.completeDownloadHandler();
+
+    this.peerManager.startListening(listenPort);
 
     startStatsUI(this.stats, this.recon);
 
