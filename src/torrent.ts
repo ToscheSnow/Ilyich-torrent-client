@@ -58,8 +58,6 @@ export class Torrent {
 
     const decodedTorrent = decoder.parse() as BencodeDict;
 
-    // console.log(decodedTorrent);
-
     this.meta = getMeta(decodedTorrent);
     this.infoHash = Buffer.from(this.meta.infoHash);
 
@@ -115,7 +113,7 @@ export class Torrent {
     await this.announce(listenPort);
   }
 
-  private async announce(listenPort: number, trackerAnnounceInterval = 1 * 60) {
+  private async announce(listenPort: number, trackerAnnounceInterval = 1 * 30) {
     let nextInterval = Infinity;
 
     const args: TrackerAnnounceArgs = {
@@ -138,10 +136,11 @@ export class Torrent {
     });
 
     if (nextInterval !== Infinity) {
-      setTimeout(
-        () => void this.announce(listenPort),
-        trackerAnnounceInterval * 1000,
-      );
+      setTimeout(() => {
+        console.log("😈 Announced again ");
+
+        this.announce(listenPort);
+      }, trackerAnnounceInterval * 1000);
     }
   }
 

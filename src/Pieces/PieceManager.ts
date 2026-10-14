@@ -158,14 +158,15 @@ export class PieceManager {
         return;
       }
       // console.log(
-      //   `🔐 PIECE ${pieceIdx} is valid hash valid=${Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20))}`,
+      //   // `🔐 PIECE ${pieceIdx} is valid hash valid`,
+      //   Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20)),
       // );
       await this.storageManager.writePiece(pieceIdx, assembled);
       this.verifiedPieces.add(pieceIdx);
 
       this.recon.announce("PIECE:COMPLETED", pieceIdx, assembled.length);
 
-      // console.log("Written a piece to disk");
+      // console.log(`Written piece ${pieceIdx} to disk`);
       this.clearPieceBlocks(pieceIdx);
 
       peer.HAVE_Req(pieceIdx);

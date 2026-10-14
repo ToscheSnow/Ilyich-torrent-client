@@ -88,7 +88,7 @@ export class Peer {
         return;
 
       case "INTERESTED":
-        // console.log("(I) They are interested");
+        console.log("(I) They are interested");
 
         this.state.peerInterested = true;
         this.state.amChoking = false;
@@ -112,7 +112,7 @@ export class Peer {
       case "BITFIELD":
         addPiecesFromBitfield(event.field, this.availablePieces);
 
-        // console.log("received a bitfield");
+        // console.log("🏖️ received a bitfield", event.field);
         this.Interested_REQ();
 
         this.recon.announce("PEER:BITFIELD", this);
@@ -123,7 +123,7 @@ export class Peer {
         return;
 
       case "REQUEST":
-        // console.log("🥺 INCOMING REQUEST FOR A PIECE");
+        console.log("🥺 INCOMING REQUEST FOR A PIECE");
         if (this.state.amChoking) {
           return;
         }
@@ -162,7 +162,7 @@ export class Peer {
 
         this.pendingRequests.delete(pieceKey);
 
-        // console.log("Received a block");
+        // console.log(`📦 Received ${pieceKey}`);
 
         await this.pieceHandler(event.piece, this);
 
@@ -172,7 +172,7 @@ export class Peer {
         return;
 
       case "EXTENDED":
-        // console.log("Ignore extended req 😂");
+        console.log("Ignore extended req 😂");
         return;
 
       default:

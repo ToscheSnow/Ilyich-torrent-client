@@ -24,6 +24,13 @@ export function trackerURL({
   url.searchParams.set("downloaded", downloaded.toString());
   url.searchParams.set("left", totalBytes.toString());
 
+  // console.log(
+  //   `${url.origin}${url.pathname}` +
+  //     `?info_hash=${infoHashEncoded}` +
+  //     `&peer_id=${peerIdEncoded}&compact=1` +
+  //     `&${url.searchParams.toString()}`,
+  // );
+
   return (
     `${url.origin}${url.pathname}` +
     `?info_hash=${infoHashEncoded}` +
