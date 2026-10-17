@@ -5,7 +5,7 @@ import {
   parseCompactIPv6Peers,
   parsePeerAddress,
 } from "../fileParsing/parsePeerAddress";
-import { trackerURL } from "./trackerURL";
+import { httpTrackerQuery } from "./trackerURL";
 
 export type TrackerResponse = {
   peers: PeerAddress[];
@@ -21,23 +21,22 @@ export type TrackerAnnounceArgs = {
   left: number;
 };
 
-export class Tracker {
+export class HTTPTracker {
   private readonly urls: string[];
 
   constructor(decodedTorrent: BencodeDict) {
-    this.urls = this.getHttpTrackers(decodedTorrent);
+    this.urls = this.getTrackerAddr(decodedTorrent);
 
     if (this.urls.length === 0) {
-      throw new Error("No HTTP trackers found in torrent");
+      console.log("No HTTP trackers found in torrent");
     }
   }
 
-  private getHttpTrackers(decodedTorrent: BencodeDict): string[] {
+  private getTrackerAddr(decodedTorrent: BencodeDict): string[] {
     // use a Set so a urls appearing in both announce-list and announce
     // doesn't get announced to twice😂
     const httpUrls = new Set<string>();
     const decoder = new TextDecoder();
-    let udp = 0;
     let http = 0;
 
     // announce-list is OPTIONAL per BEP 12 - plenty of real .torrent files
@@ -53,13 +52,12 @@ export class Tracker {
           if (this.isHttpTracker(url)) {
             httpUrls.add(url);
             http++;
-          } else udp++;
+          }
         }
       }
     }
 
     console.log("HTTP trackers found ", http);
-    console.log("UDP trackers found", udp);
 
     // "announce" is required by the original spec but guard anyway in case
     const announceBytes = decodedTorrent["announce"] as Uint8Array | undefined;
@@ -91,7 +89,7 @@ export class Tracker {
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
 
-        console.error(`Tracker failed :${url} - ${message}`);
+        // console.error(`Tracker failed :${url} - ${message}`);
       }
     };
 
@@ -102,7 +100,7 @@ export class Tracker {
     trackerUrl: string,
     args: TrackerAnnounceArgs,
   ): Promise<TrackerResponse> {
-    const url = trackerURL({
+    const url = httpTrackerQuery({
       urlPath: trackerUrl,
       infoHash: args.infoHash,
       clientPort: args.port,

@@ -145,7 +145,7 @@ export class PeerManager {
         return;
       }
 
-      console.log(`🧩 Connected to a peer ${normalizeAddr(host)}:${port}`);
+      // console.log(`🧩 Connected to a peer ${normalizeAddr(host)}:${port}`);
 
       socket.off("data", onHandshake);
 

@@ -9,7 +9,7 @@ import { PeerManager } from "./peers/PeerManager";
 import type { Peer } from "./peers/peer";
 
 import { CLIENT_ID_BYTES } from "./client";
-import { Tracker, type TrackerAnnounceArgs } from "./trackers/tracker";
+import { HTTPTracker, type TrackerAnnounceArgs } from "./trackers/tracker";
 import { Stats } from "./utils/StatsReporter";
 import { Scheduler } from "./Scheduler/scheduler";
 import type { BencodeDict } from "./types/parserTypes";
@@ -17,6 +17,7 @@ import { getMeta } from "./fileParsing/meta";
 import { Recon } from "./Emitter/Recon";
 import type { BlockRequest, Piece } from "./types/peerTypes";
 import { startStatsUI } from "./utils/stats-ui";
+import { UDPTracker } from "../udpTracker";
 
 export type TorrentEvents = {
   "PEER:CONNECT": [Peer];
@@ -41,7 +42,8 @@ export class Torrent {
   private readonly pieceManager: PieceManager;
   private readonly scheduler: Scheduler;
   private readonly peerManager: PeerManager;
-  private readonly tracker: Tracker;
+  private readonly udpTracker: UDPTracker;
+  private readonly HTTPTracker: HTTPTracker;
   private stats: Stats;
 
   private readonly meta;
@@ -90,7 +92,21 @@ export class Torrent {
       this.pieceManager.getVerifiedPieces,
     );
 
-    this.tracker = new Tracker(decodedTorrent);
+    // this.udpTracker = new HTTPTracker(decodedTorrent);
+    const args: TrackerAnnounceArgs = {
+      infoHash: this.infoHash,
+      peerId: this.peerId,
+      port: 6881,
+      uploaded: this.stats.bytesUploaded,
+      downloaded: this.stats.downloadedBytes, // should be what you have
+      left: this.totalBytes - this.stats.downloadedBytes,
+    };
+
+    this.udpTracker = new UDPTracker(decodedTorrent, args, (peerAddresses) => {
+      this.peerManager.addAddresses(peerAddresses);
+    });
+
+    this.HTTPTracker = new HTTPTracker(decodedTorrent);
   }
 
   public async start(listenPort = 6881) {
@@ -110,10 +126,17 @@ export class Torrent {
 
     startStatsUI(this.stats, this.recon);
 
-    await this.announce(listenPort);
+    this.udpTracker.announce(() => {
+      console.log("Success");
+    });
+
+    await this.HTTPannounce(listenPort);
   }
 
-  private async announce(listenPort: number, trackerAnnounceInterval = 1 * 30) {
+  private async HTTPannounce(
+    listenPort: number,
+    trackerAnnounceInterval = 1 * 30,
+  ) {
     let nextInterval = Infinity;
 
     const args: TrackerAnnounceArgs = {
@@ -125,7 +148,7 @@ export class Torrent {
       left: this.totalBytes - this.stats.downloadedBytes,
     };
 
-    await this.tracker.announce(args, (response) => {
+    await this.HTTPTracker.announce(args, (response) => {
       this.peerManager.addAddresses(response.peers);
 
       console.log(
@@ -139,7 +162,7 @@ export class Torrent {
       setTimeout(() => {
         console.log("😈 Announced again ");
 
-        this.announce(listenPort);
+        this.HTTPannounce(listenPort);
       }, trackerAnnounceInterval * 1000);
     }
   }

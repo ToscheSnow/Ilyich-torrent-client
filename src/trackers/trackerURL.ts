@@ -1,7 +1,7 @@
 import type { trackerURLParams } from "../types/tracker";
 import { CLIENT_ID_BYTES } from "../client";
 
-export function trackerURL({
+export function httpTrackerQuery({
   urlPath,
   infoHash,
   clientPort,

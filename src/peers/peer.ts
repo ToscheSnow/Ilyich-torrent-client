@@ -60,7 +60,7 @@ export class Peer {
   private disconnect = () => {
     if (this.disconnected) return;
     this.disconnected = true;
-    console.log(`🌩️ Disconnected from peer ${this.remoteAddress}:${this.port}`);
+    // console.log(`🌩️ Disconnected from peer ${this.remoteAddress}:${this.port}`);
 
     this.pendingRequests.clear();
     this.reqQueue.close();
