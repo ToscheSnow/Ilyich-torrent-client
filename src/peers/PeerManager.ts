@@ -7,7 +7,7 @@ import { Peer } from "./peer";
 import { BITFIELD_BUF } from "./bitfield";
 import type { TorrentEvents } from "../torrent";
 import type { Recon } from "../Emitter/Recon";
-import { normalizeAddr } from "../utils/normaliseAddr";
+import { parseClient } from "./clientName";
 
 export type PeerAddress = {
   host: string;
@@ -64,7 +64,11 @@ export class PeerManager {
         const message = buf.subarray(0, 68);
         buf = buf.subarray(68);
 
-        const { isSuccessful } = verifyHandshake(ourHandshake, message);
+        const { isSuccessful, remotePeerId } = verifyHandshake(
+          ourHandshake,
+          message,
+        );
+
         if (!isSuccessful) {
           socket.destroy();
           return;
@@ -87,6 +91,10 @@ export class PeerManager {
           this.pieceHandler,
           totalPieces,
         );
+
+        console.log("From Incoming peer", remotePeerId);
+
+        peer.clientName = parseClient(remotePeerId);
 
         this.activePeers.add(peer);
         this.recon.announce("PEER:CONNECT", peer);
@@ -137,7 +145,10 @@ export class PeerManager {
       const message = buf.subarray(0, 68);
       buf = buf.subarray(68);
 
-      const { isSuccessful } = verifyHandshake(torrentHandshake, message);
+      const { isSuccessful, remotePeerId } = verifyHandshake(
+        torrentHandshake,
+        message,
+      );
 
       if (!isSuccessful) {
         this.connectingPeers.delete(peerKey);
@@ -152,6 +163,8 @@ export class PeerManager {
       const { verifiedPieces, totalPieces } = this.getVerifiedPieces();
 
       const peer = new Peer(socket, this.recon, this.pieceHandler, totalPieces);
+
+      peer.clientName = parseClient(remotePeerId);
 
       this.activePeers.add(peer);
 
@@ -173,12 +186,12 @@ export class PeerManager {
 
     socket.on("data", onHandshake);
 
-    socket.on("error", (err) => {
+    socket.on("error", () => {
       // console.log(`❌ Connection error with ${peerKey}:`, err.message);
       this.connectingPeers.delete(peerKey);
     });
 
-    socket.on("close", (hadError) => {
+    socket.on("close", () => {
       this.connectingPeers.delete(peerKey);
       // console.log(`🔌 CLOSED ${peerKey}, hadError=${hadError}`);
     });

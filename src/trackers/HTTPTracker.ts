@@ -88,7 +88,6 @@ export class HTTPTracker {
         onResponse(response);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-
         // console.error(`Tracker failed :${url} - ${message}`);
       }
     };

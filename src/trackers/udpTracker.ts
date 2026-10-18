@@ -1,11 +1,11 @@
 import { randomBytes } from "node:crypto";
-import type { TrackerAnnounceArgs } from "./src/trackers/tracker";
+import type { TrackerAnnounceArgs } from "./HTTPTracker";
 import dgram from "node:dgram";
-import type { BencodeDict } from "./src/types/parserTypes";
-import { AsyncMessageQueue } from "./src/Queues/MessageQueue";
-import { parsePeerAddress } from "./src/fileParsing/parsePeerAddress";
+import type { BencodeDict } from "../types/parserTypes";
+import { AsyncMessageQueue } from "../Queues/MessageQueue";
+import { parsePeerAddress } from "../fileParsing/parsePeerAddress";
 import dns from "node:dns/promises";
-import type { PeerAddress } from "./src/peers/PeerManager";
+import type { PeerAddress } from "../peers/PeerManager";
 
 type TrackerRequest = {
   host: string;
@@ -94,6 +94,8 @@ export class UDPTracker {
 
   private outgoingMessageQueue: AsyncMessageQueue<Datagram> =
     new AsyncMessageQueue<Datagram>();
+
+  private silent = 0;
 
   constructor(
     private decodedTorrent: BencodeDict,
@@ -230,8 +232,12 @@ export class UDPTracker {
 
         if (!state || state.kind !== "CONNECTED") return;
 
-        console.log("UDP SEEDERS:", event.seeders);
-        console.log("UDP leechers:", event.leechers);
+        // console.log(
+        //   "UDP SEEDERS:",
+        //   event.seeders,
+        //   "UDP leechers:",
+        //   event.leechers,
+        // );
 
         const peers = parsePeerAddress(event.peers);
 
@@ -293,6 +299,7 @@ export class UDPTracker {
       }
 
       case "DISCONNECT": {
+        this.silent++;
         const trackerKey = `${event.host},${event.port}`;
 
         this.trackerStates.set(trackerKey, {
@@ -350,9 +357,12 @@ export class UDPTracker {
             transactionId: announceTransactionId,
           });
         },
-        DELAY * (1 << triesDone),
+        DELAY *
+          (1 << triesDone) *
+          (Math.floor(Math.random() * (1.25 - 0.75 + 1)) + 0.75),
       ),
     );
+
     this.outgoingMessageQueue.push({ host, port, message: buf });
   }
 
@@ -381,7 +391,9 @@ export class UDPTracker {
             transactionId: connectTransactionId,
           });
         },
-        DELAY * (1 << triesDone),
+        DELAY *
+          (1 << triesDone) *
+          (Math.floor(Math.random() * (1.25 - 0.75 + 1)) + 0.75),
       ),
     );
 
@@ -509,22 +521,23 @@ export class UDPTracker {
         });
 
         this.sendConnectRequest(host, port, 0);
-      } catch (err) {
-        if (err instanceof Error) {
-          console.log(err.name);
-          console.log(err.message);
-        }
-
+      } catch {
         console.log(`Tracker ${url} failed`);
       }
     };
 
-    // setInterval(
-    //   () => {
-    //     Promise.allSettled(urls.map((url) => connect(url)));
-    //   },
-    //   2 * 60 * 1000,
-    // );
+    setInterval(
+      () => {
+        console.log("😋 Sent UDP Tracker request");
+
+        Promise.allSettled(urls.map((url) => connect(url)));
+      },
+      4 * 60 * 1000,
+    );
+
+    // setInterval(() => {
+    //   console.log(`Silent trackers: ${this.silent}`);
+    // }, 10 * 1000);
 
     Promise.allSettled(urls.map((url) => connect(url)));
   }

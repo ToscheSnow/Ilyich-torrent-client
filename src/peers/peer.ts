@@ -12,6 +12,7 @@ import { decodeIncomingPeerMessage } from "./parseEventFromMessage";
 import type { Recon } from "../Emitter/Recon";
 import type { TorrentEvents } from "../torrent";
 import { normalizeAddr } from "../utils/normaliseAddr";
+import { RateMeter } from "../RateMeter";
 
 export class Peer {
   private remoteAddress;
@@ -25,6 +26,9 @@ export class Peer {
   private reqQueue: AsyncMessageQueue<Buffer> = new AsyncMessageQueue<Buffer>();
   private incomingQueue: AsyncMessageQueue<Buffer> =
     new AsyncMessageQueue<Buffer>();
+
+  public readonly down = new RateMeter();
+  public clientName = "Unknown";
 
   constructor(
     private socket: Socket,
@@ -75,6 +79,7 @@ export class Peer {
     switch (event.type) {
       case "CHOKE":
         this.state.peerChoking = true;
+
         this.recon.announce("PEER:CHOKE", this);
         // console.log("😨 CHOKE US");
 
@@ -123,7 +128,7 @@ export class Peer {
         return;
 
       case "REQUEST":
-        console.log("🥺 INCOMING REQUEST FOR A PIECE");
+        // console.log("🥺 INCOMING REQUEST FOR A PIECE");
         if (this.state.amChoking) {
           return;
         }
@@ -160,6 +165,7 @@ export class Peer {
           throw new Error("Received piece with incorrect length");
         }
 
+        this.down.add(event.piece.block.length);
         this.pendingRequests.delete(pieceKey);
 
         // console.log(`📦 Received ${pieceKey}`);
@@ -269,9 +275,17 @@ export class Peer {
       const message = await this.incomingQueue.pop();
       if (message === undefined) break;
 
-      const event = decodeIncomingPeerMessage(message!);
+      try {
+        await this.processEvent(decodeIncomingPeerMessage(message));
+      } catch (e) {
+        console.warn("bad message, dropping peer", e);
+        this.disconnect();
+        break;
+      }
 
-      await this.processEvent(event);
+      // const event = decodeIncomingPeerMessage(message!);
+
+      // await this.processEvent(event);
     }
   }
 
@@ -294,7 +308,9 @@ export class Peer {
   }
 
   public onData = (chunk: Buffer) => {
-    this.buf = Buffer.concat([this.buf, chunk]);
+    // this.buf = timed("concat", () => Buffer.concat([this.buf, chunk]));
+    // this.buf = Buffer.concat([this.buf, chunk]);
+    this.buf = this.buf.length === 0 ? chunk : Buffer.concat([this.buf, chunk]);
 
     while (true) {
       // Need the 4-byte message length prefix
@@ -363,6 +379,14 @@ export class Peer {
 
   public get inFlight(): number {
     return this.pendingRequests.size;
+  }
+
+  public get peerName() {
+    return this.clientName;
+  }
+
+  public get addr() {
+    return `${this.remoteAddress},${this.port}`
   }
 }
 

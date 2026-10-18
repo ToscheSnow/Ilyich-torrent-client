@@ -9,7 +9,7 @@ import { PeerManager } from "./peers/PeerManager";
 import type { Peer } from "./peers/peer";
 
 import { CLIENT_ID_BYTES } from "./client";
-import { HTTPTracker, type TrackerAnnounceArgs } from "./trackers/tracker";
+import { HTTPTracker, type TrackerAnnounceArgs } from "./trackers/HTTPTracker";
 import { Stats } from "./utils/StatsReporter";
 import { Scheduler } from "./Scheduler/scheduler";
 import type { BencodeDict } from "./types/parserTypes";
@@ -17,7 +17,7 @@ import { getMeta } from "./fileParsing/meta";
 import { Recon } from "./Emitter/Recon";
 import type { BlockRequest, Piece } from "./types/peerTypes";
 import { startStatsUI } from "./utils/stats-ui";
-import { UDPTracker } from "../udpTracker";
+import { UDPTracker } from "./trackers/udpTracker";
 
 export type TorrentEvents = {
   "PEER:CONNECT": [Peer];
@@ -33,6 +33,7 @@ export type TorrentEvents = {
   "BLOCK:UPLOADED": [number];
   "PIECE:EXISTING": [number];
   "SEEDER:CONNECT": [Peer];
+  "PIECE:FAILED": [number];
 };
 
 export class Torrent {
@@ -65,8 +66,6 @@ export class Torrent {
 
     this.totalBytes = this.getTotalBytes();
 
-    this.stats = new Stats(this.meta.pieceHashes.length / 20, this.recon);
-
     this.storageManager = new StorageManager(this.meta, this.downloadDir);
 
     this.pieceManager = new PieceManager(
@@ -79,6 +78,7 @@ export class Torrent {
       this.pieceManager,
       this.activePeers,
       this.recon,
+      Math.ceil(this.meta.pieceLength / (16 * 1024)),
     );
 
     this.peerManager = new PeerManager(
@@ -90,6 +90,12 @@ export class Torrent {
       this.pieceManager.receiveBlock,
       this.pieceManager.getBlock,
       this.pieceManager.getVerifiedPieces,
+    );
+
+    this.stats = new Stats(
+      this.pieceManager.pieceCount,
+      this.pieceManager.totalBytes,
+      this.recon,
     );
 
     // this.udpTracker = new HTTPTracker(decodedTorrent);
@@ -110,7 +116,7 @@ export class Torrent {
   }
 
   public async start(listenPort = 6881) {
-    console.log("Starting torrent");
+    console.log(`Started torrent at ${new Date().toLocaleTimeString()}`);
 
     await this.storageManager.initFileHandles();
 
@@ -126,9 +132,7 @@ export class Torrent {
 
     startStatsUI(this.stats, this.recon);
 
-    this.udpTracker.announce(() => {
-      console.log("Success");
-    });
+    this.udpTracker.announce();
 
     await this.HTTPannounce(listenPort);
   }
@@ -151,9 +155,9 @@ export class Torrent {
     await this.HTTPTracker.announce(args, (response) => {
       this.peerManager.addAddresses(response.peers);
 
-      console.log(
-        `Tracker returned ${response.peers.length} peers, interval=${response.interval}`,
-      );
+      // console.log(
+      //   `Tracker returned ${response.peers.length} peers, interval=${response.interval}`,
+      // );
 
       nextInterval = Math.min(nextInterval, response.interval);
     });

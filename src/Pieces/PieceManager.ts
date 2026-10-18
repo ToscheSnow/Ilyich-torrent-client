@@ -7,16 +7,18 @@ import type { Peer } from "../peers/peer";
 import type { Recon } from "../Emitter/Recon";
 import type { TorrentEvents } from "../torrent";
 import { formatBytes } from "../utils/stats-ui";
+import { timed, timedAsync } from "../../perf";
 
 export class PieceManager {
   private totalLength: number;
   private pieceLength: number;
   private downloadCompleted = false;
 
-  private blocks: Map<string, Buffer> = new Map<string, Buffer>();
+  private blocks: Map<number, Buffer> = new Map<number, Buffer>();
   private hashes: Uint8Array;
   private verifiedPieces: Set<number> = new Set<number>();
   private numPieces: number;
+  private blocksPerPiece = 0;
 
   public constructor(
     { pieceHashes, pieceLength, ...meta }: TorrentMetadata,
@@ -36,6 +38,8 @@ export class PieceManager {
     }
 
     this.numPieces = Math.ceil(this.totalLength / pieceLength);
+
+    this.blocksPerPiece = Math.ceil(pieceLength / BLOCK_SIZE);
 
     console.log("Piece length:", formatBytes(this.pieceLength));
     console.log("Piece count:", this.numPieces);
@@ -94,7 +98,7 @@ export class PieceManager {
     return Math.ceil(length / BLOCK_SIZE);
   }
 
-  private getBlockLength(pieceIdx: number, offset: number): number {
+  public getBlockLength(pieceIdx: number, offset: number): number {
     const pieceLength = this.getPieceLength(pieceIdx);
 
     if (offset < 0 || offset >= pieceLength) {
@@ -130,9 +134,11 @@ export class PieceManager {
       return;
     }
 
-    const blockKey = `${pieceIdx},${offset}`;
+    const blockKey = this.key(pieceIdx, offset);
 
-    this.blocks.set(blockKey, block);
+    if (this.blocks.has(blockKey)) {
+    }
+    this.blocks.set(blockKey, Buffer.from(block));
 
     // const storedForPiece =
     //   this.getBlockCount(pieceIdx) - this.getNeededBlocks(pieceIdx).length;
@@ -144,24 +150,31 @@ export class PieceManager {
 
     this.recon.announce("BLOCK:RECEIVED", piece);
 
-    if (this.isCompletePiece(pieceIdx)) {
-      const assembled = this.assemblePiece(pieceIdx);
+    if (timed("isComplete", () => this.isCompletePiece(pieceIdx))) {
+      const assembled = timed("assemble", () => this.assemblePiece(pieceIdx));
       // console.log(`🧩 PIECE ${pieceIdx} COMPLETE`);
 
       if (
-        !this.verifyPiece(
-          assembled,
-          Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20)),
+        !timed("hash", () =>
+          this.verifyPiece(
+            assembled,
+            Buffer.from(
+              this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20),
+            ),
+          ),
         )
       ) {
         this.clearPieceBlocks(pieceIdx);
+        this.recon.announce("PIECE:FAILED", pieceIdx); // 👈 add to TorrentEvents too
         return;
       }
       // console.log(
       //   // `🔐 PIECE ${pieceIdx} is valid hash valid`,
       //   Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20)),
       // );
-      await this.storageManager.writePiece(pieceIdx, assembled);
+      await timedAsync("write", () =>
+        this.storageManager.writePiece(pieceIdx, assembled),
+      );
       this.verifiedPieces.add(pieceIdx);
 
       this.recon.announce("PIECE:COMPLETED", pieceIdx, assembled.length);
@@ -182,7 +195,9 @@ export class PieceManager {
 
     for (let i = 0; i < numBlocks; i++) {
       const offset = i * BLOCK_SIZE;
-      const key = `${pieceIdx},${offset}`;
+
+      const key = this.key(pieceIdx, offset);
+      // const key = `${pieceIdx},${offset}`;
 
       if (!this.blocks.has(key)) {
         // console.log(
@@ -202,7 +217,8 @@ export class PieceManager {
     const blocks = this.getBlockCount(pieceIdx);
 
     for (let i = 0; i < blocks; i++) {
-      const block = this.blocks.get(`${pieceIdx},${i * BLOCK_SIZE}`)!;
+      const key = this.key(pieceIdx, i * BLOCK_SIZE);
+      const block = this.blocks.get(key)!;
       buf.set(block, i * BLOCK_SIZE);
     }
 
@@ -225,7 +241,7 @@ export class PieceManager {
 
     for (let i = 0; i < numBlocks; i++) {
       const blockSize = this.getBlockLength(pieceIdx, i * BLOCK_SIZE);
-      const key = `${pieceIdx},${i * BLOCK_SIZE}`;
+      const key = this.key(pieceIdx, i * BLOCK_SIZE);
 
       if (!this.blocks.has(key)) {
         neededBlocks.push({
@@ -240,34 +256,48 @@ export class PieceManager {
   }
 
   public async verifyAvailablePieces() {
-    //benchmark
-
     const CONCURRENT_READS = 64;
 
-    // worker function to check and verify written pieces
     const readAndVerifyPiece = async (pieceIdx: number) => {
       const pieceLen = this.getPieceLength(pieceIdx);
-      const pieceBuf: Buffer = await this.storageManager.readBlock(
-        pieceIdx,
-        pieceLen,
+
+      const pieceBuf = await this.storageManager.readBlock(pieceIdx, pieceLen);
+
+      const ok = this.verifyPiece(
+        pieceBuf,
+        Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20)),
       );
 
-      if (
-        !this.verifyPiece(
-          pieceBuf,
-          Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20)),
-        )
-      ) {
+      if (!ok) {
         this.clearPieceBlocks(pieceIdx);
         return;
       }
 
       this.verifiedPieces.add(pieceIdx);
-
       this.recon.announce("PIECE:EXISTING", pieceLen);
     };
+    // worker function to check and verify written pieces
+    // const readAndVerifyPiece = async (pieceIdx: number) => {
+    //   const pieceLen = this.getPieceLength(pieceIdx);
+    //   const pieceBuf: Buffer = await this.storageManager.readBlock(
+    //     pieceIdx,
+    //     pieceLen,
+    //   );
 
-    const startTime = performance.now();
+    //   if (
+    //     !this.verifyPiece(
+    //       pieceBuf,
+    //       Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20)),
+    //     )
+    //   ) {
+    //     this.clearPieceBlocks(pieceIdx);
+    //     return;
+    //   }
+
+    //   this.verifiedPieces.add(pieceIdx);
+
+    //   this.recon.announce("PIECE:EXISTING", pieceLen);
+    // };
 
     for (
       let batchStart = 0;
@@ -284,17 +314,13 @@ export class PieceManager {
 
       await Promise.all(batch.map(readAndVerifyPiece));
     }
-
-    const end = performance.now();
-    console.log(`${(end - startTime).toFixed(2)} ms`);
-    console.log(`Found ${this.verifiedPieces.size} already on disk`);
   }
 
   private clearPieceBlocks(pieceIdx: number) {
     const blockCount = this.getBlockCount(pieceIdx);
 
     for (let i = 0; i < blockCount; i++) {
-      this.blocks.delete(`${pieceIdx},${i * BLOCK_SIZE}`);
+      this.blocks.delete(this.key(pieceIdx, i * BLOCK_SIZE));
     }
   }
 
@@ -317,5 +343,23 @@ export class PieceManager {
 
   public get pendingBlockCount(): number {
     return this.blocks.size;
+  }
+
+  public allOffsets(pieceIdx: number): number[] {
+    if (this.verifiedPieces.has(pieceIdx)) return [];
+    const offs: number[] = [];
+    for (let i = this.getBlockCount(pieceIdx) - 1; i >= 0; i--) {
+      if (!this.blocks.has(this.key(pieceIdx, i * BLOCK_SIZE)))
+        offs.push(i * BLOCK_SIZE);
+    }
+    return offs;
+  }
+
+  private key(pieceIdx: number, offset: number) {
+    return pieceIdx * this.blocksPerPiece + offset / BLOCK_SIZE;
+  }
+
+  public get totalBytes(): number {
+    return this.totalLength;
   }
 }

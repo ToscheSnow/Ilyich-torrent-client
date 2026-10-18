@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Text, Box, render } from "ink";
-import { memoryUsage, resourceUsage } from "node:process";
+import { memoryUsage } from "node:process";
 import type { Stats } from "./StatsReporter";
 import type { Recon } from "../Emitter/Recon";
 import type { TorrentEvents } from "../torrent";
@@ -12,65 +12,71 @@ export function formatBytes(n: number): string {
 }
 
 function formatMbps(bytesPerSecond: number): string {
-  const megabits = (bytesPerSecond * 8) / 1024 ** 2;
-  return `${megabits.toFixed(2)} Mbps`;
+  return `${((bytesPerSecond * 8) / 1e6).toFixed(2)} Mbps`; // megabit = 1e6 not 1024²
+}
+
+function formatEta(sec: number): string {
+  if (!isFinite(sec)) return "--";
+  if (sec === 0) return "done 🎉";
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  return h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+function PeerTable({ stats }: { stats: Stats }) {
+  const rows = stats.topPeers(5);
+  return (
+    <Box flexDirection="column">
+      <Text color="cyan">Top peers</Text>
+      {rows.map((p) => (
+        <Text key={p.addr}>
+          {p.peerName.padEnd(22)} ↓ {formatMbps(p.down.rate).padStart(11)}
+          {/* {"  "}↑ {formatMbps(p.up.rate).padStart(11)} */}
+        </Text>
+      ))}
+    </Box>
+  );
 }
 
 function App({ stats }: { stats: Stats }) {
   const [, forceTick] = useState(0);
-
-  const delayMs = 250;
+  const delayMs = 500;
 
   useEffect(() => {
     const id = setInterval(() => {
+      stats.sample(delayMs); // 👈 sample here, render stays pure
       forceTick((t) => t + 1);
     }, delayMs);
-
     return () => clearInterval(id);
   }, []);
 
-  const speed = stats.speedSince(delayMs);
   const pct = (stats.progress * 100).toFixed(1);
-
   const memory = memoryUsage();
-  const resources = resourceUsage();
 
   return (
     <Box flexDirection="column" borderStyle="round" padding={1}>
-      <Text color={"whiteBright"}>
+      <Text color="whiteBright">
         Progress: {stats.piecesCompletedCount} pieces ({pct}%) —{" "}
         {formatBytes(stats.downloadedBytes)} total
       </Text>
-
       <Text color="green">
         Uploaded {formatBytes(stats.bytesUploaded)} total
       </Text>
+      <Text color="whiteBright">Speed: {formatMbps(stats.speed)}</Text>
+      <Text color="whiteBright">ETA: {formatEta(stats.etaSeconds)}</Text>
+      <Text color="whiteBright">Peers: {stats.peersConnectedCount}</Text>
+      <Text color="whiteBright">Choked Peers: {stats.peersChoked}</Text>
+      <Text color="whiteBright">Seeders: {stats.seedPeers}</Text>
+      <PeerTable stats={stats} />
 
-      <>
-        <Text color="whiteBright">Speed: {formatMbps(speed)}</Text>
-        <Text color="whiteBright">Peers: {stats.peersConnectedCount}</Text>
-        <Text color="whiteBright">Choked Peers: {stats.peersChoked}</Text>
-        <Text color="whiteBright">Seeders: {stats.seedPeers}</Text>
-      </>
-
-      <Text color={"yellowBright"}>
-        RSS: {formatBytes(memory.rss)}
-        {" — "}
-        Heap: {formatBytes(memory.heapUsed)}
+      <Text color="yellowBright">
+        RSS: {formatBytes(memory.rss)} — Heap: {formatBytes(memory.heapUsed)}
       </Text>
-
-      {/* <Text>
-        External: {formatBytes(memory.external)}
-        {" — "}
-        ArrayBuffers: {formatBytes(memory.arrayBuffers)}
-      </Text>
-
-      <Text>Peak RSS: {formatBytes(resources.maxRSS)}</Text> */}
     </Box>
   );
 }
 
 export function startStatsUI(stats: Stats, recon: Recon<TorrentEvents>) {
-  const { unmount } = render(<App stats={stats} />);
-  // recon.once("DOWNLOAD_COMPLETE", () => unmount());
+  render(<App stats={stats} />);
 }
