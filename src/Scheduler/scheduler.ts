@@ -8,7 +8,7 @@ import type { SchedulerEvent } from "../types/schedulerTypes";
 import { BLOCK_SIZE } from "../client";
 
 export class Scheduler {
-  private readonly MAX_IN_FLIGHT = 1;
+  private readonly MAX_IN_FLIGHT = 100;
   private eventQueue = new AsyncMessageQueue<SchedulerEvent>();
 
   private active = new Map<number, number[]>();
