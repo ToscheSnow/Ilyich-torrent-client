@@ -54,6 +54,8 @@ export class PieceManager {
 
     this.downloadCompleted = true;
 
+    this.blocks.clear();
+
     this.recon.announce("DOWNLOAD_COMPLETE");
   }
 
@@ -172,9 +174,8 @@ export class PieceManager {
       //   // `🔐 PIECE ${pieceIdx} is valid hash valid`,
       //   Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20)),
       // );
-      await timedAsync("write", () =>
-        this.storageManager.writePiece(pieceIdx, assembled),
-      );
+      await this.storageManager.writePiece(pieceIdx, assembled);
+
       this.verifiedPieces.add(pieceIdx);
 
       this.recon.announce("PIECE:COMPLETED", pieceIdx, assembled.length);

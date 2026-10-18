@@ -62,6 +62,8 @@ export class Stats {
     this.recon.listen("SEEDER:CONNECT", (peer) => this.seeders.add(peer));
 
     this.recon.once("DOWNLOAD_COMPLETE", () => {
+      
+      
       for (const off of handlers) off();
     });
   }

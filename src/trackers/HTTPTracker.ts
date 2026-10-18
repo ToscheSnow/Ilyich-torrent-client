@@ -1,5 +1,7 @@
 import type { BencodeDict } from "../types/parserTypes";
 import type { PeerAddress } from "../peers/PeerManager";
+import type { Recon } from "../Emitter/Recon";
+import type { TorrentEvents } from "../torrent";
 import { BencodeDecoder } from "../fileParsing/parserDecoder";
 import {
   parseCompactIPv6Peers,
@@ -23,13 +25,29 @@ export type TrackerAnnounceArgs = {
 
 export class HTTPTracker {
   private readonly urls: string[];
+  private announceTimer?: ReturnType<typeof setInterval>;
 
-  constructor(decodedTorrent: BencodeDict) {
+  constructor(
+    decodedTorrent: BencodeDict,
+    private args: TrackerAnnounceArgs,
+    private onResponse: (peersAddresses: PeerAddress[]) => void,
+    private recon: Recon<TorrentEvents>,
+  ) {
     this.urls = this.getTrackerAddr(decodedTorrent);
 
     if (this.urls.length === 0) {
       console.log("No HTTP trackers found in torrent");
     }
+
+    this.recon.listen("DOWNLOAD_COMPLETE", () => {
+      console.log("📦 Disconnect HTTP TRACKER");
+
+      this.disconnect();
+    });
+  }
+
+  private disconnect() {
+    clearInterval(this.announceTimer);
   }
 
   private getTrackerAddr(decodedTorrent: BencodeDict): string[] {
@@ -77,35 +95,38 @@ export class HTTPTracker {
     return url.startsWith("http://") || url.startsWith("https://");
   }
 
-  public async announce(
-    args: TrackerAnnounceArgs,
-    onResponse: (res: TrackerResponse) => void,
-  ) {
+  public async announce() {
     // send requests to tracker at the same time
-    const fetchSingleReq = async (url: string, args: TrackerAnnounceArgs) => {
+    const fetchSingleReq = async (url: string) => {
       try {
-        const response = await this.announceTracker(url, args);
-        onResponse(response);
+        const response = await this.announceTracker(url);
+        this.onResponse(response.peers);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         // console.error(`Tracker failed :${url} - ${message}`);
       }
     };
 
-    await Promise.all(this.urls.map((url) => fetchSingleReq(url, args)));
+    const announceAll = () =>
+      Promise.allSettled(this.urls.map((url) => fetchSingleReq(url)));
+
+    this.announceTimer = setInterval(() => {
+      console.log("😈 Announced again ");
+
+      announceAll();
+    }, 30 * 1000);
+
+    announceAll();
   }
 
-  private async announceTracker(
-    trackerUrl: string,
-    args: TrackerAnnounceArgs,
-  ): Promise<TrackerResponse> {
+  private async announceTracker(trackerUrl: string): Promise<TrackerResponse> {
     const url = httpTrackerQuery({
       urlPath: trackerUrl,
-      infoHash: args.infoHash,
-      clientPort: args.port,
-      uploaded: args.uploaded,
-      totalBytes: args.left,
-      downloaded: args.downloaded,
+      infoHash: this.args.infoHash,
+      clientPort: this.args.port,
+      uploaded: this.args.uploaded,
+      totalBytes: this.args.left,
+      downloaded: this.args.downloaded,
     });
 
     const response = await fetch(url);
@@ -140,10 +161,7 @@ export class HTTPTracker {
 
     // trackers are supposed to honour compact=1 and return peers as a
     // single byte string - but some dont, they often bencode an EMPTY swarm as
-
-    //
-    // an empty list  rather than an empty byte string . Handle
-    // both shapes instead of assuming
+    // an empty list rather than an empty byte string. Handle both shapes
     let parsedPeers: PeerAddress[];
 
     if (peers instanceof Uint8Array) {

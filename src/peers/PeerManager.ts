@@ -75,7 +75,7 @@ export class PeerManager {
         }
 
         console.log(
-          "🤝 INCOMING DHT peer handshake from",
+          "🤝 INCOMING TCP peer handshake from",
           socket.remoteAddress,
           socket.remotePort,
         );
@@ -133,6 +133,7 @@ export class PeerManager {
 
     const torrentHandshake = handshakeBuf(this.infoHash, CLIENT_ID_BYTES);
 
+    if (host === "10.97.29.160") return;
     const socket = net.createConnection({ host, port });
 
     let buf = Buffer.alloc(0);

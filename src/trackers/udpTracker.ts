@@ -6,6 +6,8 @@ import { AsyncMessageQueue } from "../Queues/MessageQueue";
 import { parsePeerAddress } from "../fileParsing/parsePeerAddress";
 import dns from "node:dns/promises";
 import type { PeerAddress } from "../peers/PeerManager";
+import type { Recon } from "../Emitter/Recon";
+import type { TorrentEvents } from "../torrent";
 
 type TrackerRequest = {
   host: string;
@@ -101,6 +103,7 @@ export class UDPTracker {
     private decodedTorrent: BencodeDict,
     private args: TrackerAnnounceArgs,
     private onResponse: (peersAddresses: PeerAddress[]) => void,
+    private recon: Recon<TorrentEvents>,
   ) {
     this.socket.on("message", (message, { address, port }) => {
       try {
@@ -117,8 +120,25 @@ export class UDPTracker {
       );
     });
 
+    this.recon.listen("DOWNLOAD_COMPLETE", () => {
+      console.log("📦 Disconnect UDP TRACKER");
+
+      this.disconnect;
+    });
+
     this.startIncomingLoop();
     this.startReqLoop();
+  }
+
+  private disconnect() {
+    this.incomingMessageQueue.close();
+    this.outgoingMessageQueue.close();
+
+    this.retries.clear();
+    this.pendingRequests.clear();
+    this.trackerStates.clear();
+
+    this.socket.close();
   }
 
   private async startIncomingLoop() {
@@ -153,6 +173,7 @@ export class UDPTracker {
         if (message.length < 16) {
           throw new Error("Received connect request of insufficient length");
         }
+
         return {
           type: "CONNECT_RESPONSE",
           host,
@@ -165,6 +186,7 @@ export class UDPTracker {
         if (message.length < 20) {
           throw new Error("Received announce request of insufficient length");
         }
+
         return {
           type: "ANNOUNCE_RESPONSE",
           host,

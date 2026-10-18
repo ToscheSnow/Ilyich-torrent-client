@@ -8,7 +8,7 @@ import type { SchedulerEvent } from "../types/schedulerTypes";
 import { BLOCK_SIZE } from "../client";
 
 export class Scheduler {
-  private readonly MAX_IN_FLIGHT = 10;
+  private readonly MAX_IN_FLIGHT = 1;
   private eventQueue = new AsyncMessageQueue<SchedulerEvent>();
 
   private active = new Map<number, number[]>();
@@ -72,10 +72,13 @@ export class Scheduler {
     );
 
     this.recon.once("DOWNLOAD_COMPLETE", () => {
+      console.log("🚜 Disconnect Scheduler");
+
       this.inflight.clear();
       this.byPeer.clear();
       this.active.clear();
       this.eventQueue.close();
+
       for (const off of handlers) off();
     });
   }
@@ -171,8 +174,8 @@ export class Scheduler {
       if (this.started.has(idx) || this.verifiedPieces.has(idx)) continue;
       this.started.add(idx);
 
-      const offs = this.pieceManager.allOffsets(idx); 
-      if (offs.length === 0) continue; 
+      const offs = this.pieceManager.allOffsets(idx);
+      if (offs.length === 0) continue;
       this.active.set(idx, offs);
       return this.nextFor(peer);
     }

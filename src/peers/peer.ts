@@ -53,11 +53,13 @@ export class Peer {
 
   private initReconHandlers() {
     this.recon.once("DOWNLOAD_COMPLETE", () => {
-      // this.socket.destroy();
-      this.pendingRequests.clear();
+      console.log(
+        "😙 Download finish ,disconnect peer:",
+        this.remoteAddress,
+        this.port,
+      );
 
-      this.reqQueue.close();
-      // this.incomingQueue.close();
+      this.disconnect();
     });
   }
 
@@ -386,7 +388,7 @@ export class Peer {
   }
 
   public get addr() {
-    return `${this.remoteAddress},${this.port}`
+    return `${this.remoteAddress},${this.port}`;
   }
 }
 

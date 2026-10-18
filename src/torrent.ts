@@ -108,11 +108,23 @@ export class Torrent {
       left: this.totalBytes - this.stats.downloadedBytes,
     };
 
-    this.udpTracker = new UDPTracker(decodedTorrent, args, (peerAddresses) => {
-      this.peerManager.addAddresses(peerAddresses);
-    });
+    this.udpTracker = new UDPTracker(
+      decodedTorrent,
+      args,
+      (peerAddresses) => {
+        this.peerManager.addAddresses(peerAddresses);
+      },
+      this.recon,
+    );
 
-    this.HTTPTracker = new HTTPTracker(decodedTorrent);
+    this.HTTPTracker = new HTTPTracker(
+      decodedTorrent,
+      args,
+      (peerAddresses) => {
+        this.peerManager.addAddresses(peerAddresses);
+      },
+      this.recon,
+    );
   }
 
   public async start(listenPort = 6881) {
@@ -133,42 +145,12 @@ export class Torrent {
     startStatsUI(this.stats, this.recon);
 
     this.udpTracker.announce();
+    this.HTTPTracker.announce();
 
-    await this.HTTPannounce(listenPort);
-  }
-
-  private async HTTPannounce(
-    listenPort: number,
-    trackerAnnounceInterval = 1 * 30,
-  ) {
-    let nextInterval = Infinity;
-
-    const args: TrackerAnnounceArgs = {
-      infoHash: this.infoHash,
-      peerId: this.peerId,
-      port: listenPort,
-      uploaded: this.stats.bytesUploaded,
-      downloaded: this.stats.downloadedBytes, // should be what you have
-      left: this.totalBytes - this.stats.downloadedBytes,
-    };
-
-    await this.HTTPTracker.announce(args, (response) => {
-      this.peerManager.addAddresses(response.peers);
-
-      // console.log(
-      //   `Tracker returned ${response.peers.length} peers, interval=${response.interval}`,
-      // );
-
-      nextInterval = Math.min(nextInterval, response.interval);
+    this.recon.listen("DOWNLOAD_COMPLETE", () => {
+      // small delay so the stats UI can draw its final frame
+      setTimeout(() => process.exit(0), 500);
     });
-
-    if (nextInterval !== Infinity) {
-      setTimeout(() => {
-        console.log("😈 Announced again ");
-
-        this.HTTPannounce(listenPort);
-      }, trackerAnnounceInterval * 1000);
-    }
   }
 
   private getTotalBytes(): number {
