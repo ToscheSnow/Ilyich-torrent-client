@@ -554,7 +554,7 @@ export class UDPTracker {
 
         Promise.allSettled(urls.map((url) => connect(url)));
       },
-      4 * 60 * 1000,
+      1 * 60 * 1000,
     );
 
     // setInterval(() => {

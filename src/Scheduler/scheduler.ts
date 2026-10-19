@@ -8,7 +8,8 @@ import type { SchedulerEvent } from "../types/schedulerTypes";
 import { BLOCK_SIZE } from "../client";
 
 export class Scheduler {
-  private readonly MAX_IN_FLIGHT = 100;
+  private readonly MAX_IN_FLIGHT: number;
+  // private readonly MAX_ACTIVE_PIECES: number;
   private eventQueue = new AsyncMessageQueue<SchedulerEvent>();
 
   private active = new Map<number, number[]>();
@@ -26,6 +27,14 @@ export class Scheduler {
     this.verifiedPieces = pieceManager.getVerifiedPieces().verifiedPieces;
     this.initReconHandlers();
     this.eventLoop();
+
+    this.sweepTimer = setInterval(() => this.sweep(), 5000);
+    // this.MAX_ACTIVE_PIECES = Math.max(
+    //   8,
+    //   Math.floor((128 * 1024 * 1024) / (blocksPerPiece * BLOCK_SIZE)),
+    // );
+
+    this.MAX_IN_FLIGHT = Math.max(50, this.blocksPerPiece / 4);
   }
 
   // ---------- keys ----------
@@ -68,7 +77,10 @@ export class Scheduler {
         this.active.delete(idx);
         this.schedule();
       }),
-      this.recon.listen("PIECE:COMPLETED", () => this.schedule()),
+      this.recon.listen("PIECE:COMPLETED", (idx) => {
+        this.started.delete(idx);
+        this.schedule();
+      }),
     );
 
     this.recon.once("DOWNLOAD_COMPLETE", () => {
@@ -158,6 +170,8 @@ export class Scheduler {
   }
 
   private nextFor(peer: Peer): BlockRequest | null {
+    // if (this.started.size >= this.MAX_ACTIVE_PIECES) return null;
+
     for (const [idx, offs] of this.active) {
       if (!peer.pieces.has(idx)) continue;
       const offset = offs.pop()!;
@@ -205,5 +219,25 @@ export class Scheduler {
 
   public get activeCount() {
     return this.active.size;
+  }
+
+  private sweepTimer: ReturnType<typeof setInterval>;
+
+  private sweep() {
+    for (const peer of this.peers) {
+      for (const req of peer.takeStale(20_000)) {
+        const key = this.key(req.pieceIdx, req.offset);
+        if (this.inflight.get(key) === peer) this.inflight.delete(key);
+        this.byPeer.get(peer)?.delete(key);
+
+        if (this.verifiedPieces.has(req.pieceIdx)) continue;
+        if (this.pieceManager.hasBlock(req.pieceIdx, req.offset)) continue;
+
+        let offs = this.active.get(req.pieceIdx);
+        if (!offs) this.active.set(req.pieceIdx, (offs = []));
+        if (!offs.includes(req.offset)) offs.push(req.offset);
+      }
+    }
+    this.schedule();
   }
 }

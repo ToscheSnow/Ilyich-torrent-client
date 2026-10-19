@@ -1,4 +1,3 @@
-import { startLagMonitor, startStageReport } from "./perf"
 import { Torrent } from "./src/torrent";
 import { openFile } from "./src/utils/input";
 

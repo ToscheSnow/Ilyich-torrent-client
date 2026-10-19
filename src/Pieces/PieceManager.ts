@@ -138,9 +138,8 @@ export class PieceManager {
 
     const blockKey = this.key(pieceIdx, offset);
 
-    if (this.blocks.has(blockKey)) {
-    }
-    this.blocks.set(blockKey, Buffer.from(block));
+    if (this.blocks.has(blockKey)) return;
+    this.blocks.set(blockKey, block);
 
     // const storedForPiece =
     //   this.getBlockCount(pieceIdx) - this.getNeededBlocks(pieceIdx).length;
@@ -257,7 +256,7 @@ export class PieceManager {
   }
 
   public async verifyAvailablePieces() {
-    const CONCURRENT_READS = 64;
+    const CONCURRENT_READS = 1;
 
     const readAndVerifyPiece = async (pieceIdx: number) => {
       const pieceLen = this.getPieceLength(pieceIdx);
@@ -299,6 +298,7 @@ export class PieceManager {
 
     //   this.recon.announce("PIECE:EXISTING", pieceLen);
     // };
+    const startTime = performance.now();
 
     for (
       let batchStart = 0;
@@ -315,6 +315,10 @@ export class PieceManager {
 
       await Promise.all(batch.map(readAndVerifyPiece));
     }
+
+    const end = performance.now();
+    console.log(`${(end - startTime).toFixed(2)} ms`);
+    console.log(`Found ${this.verifiedPieces.size} already on disk`);
   }
 
   private clearPieceBlocks(pieceIdx: number) {
@@ -362,5 +366,9 @@ export class PieceManager {
 
   public get totalBytes(): number {
     return this.totalLength;
+  }
+
+  public hasBlock(pieceIdx: number, offset: number): boolean {
+    return this.blocks.has(this.key(pieceIdx, offset));
   }
 }

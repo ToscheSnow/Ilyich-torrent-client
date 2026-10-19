@@ -81,7 +81,7 @@ export class Peer {
     switch (event.type) {
       case "CHOKE":
         this.state.peerChoking = true;
-
+        this.pendingRequests.clear();
         this.recon.announce("PEER:CHOKE", this);
         // console.log("😨 CHOKE US");
 
@@ -156,24 +156,17 @@ export class Peer {
         const pieceKey = `${event.piece.pieceIdx},${event.piece.offset}`;
         const pendingReq = this.pendingRequests.get(pieceKey);
 
-        if (!pendingReq) {
-          console.warn(
-            `⚠️ Received unexpected PIECE: piece=${event.piece.pieceIdx} offset=${event.piece.offset}`,
-          );
-          return;
-        }
-
-        if (pendingReq.request.length !== event.piece.block.length) {
+        if (
+          pendingReq &&
+          pendingReq.request.length !== event.piece.block.length
+        ) {
           throw new Error("Received piece with incorrect length");
         }
 
-        this.down.add(event.piece.block.length);
         this.pendingRequests.delete(pieceKey);
-
-        // console.log(`📦 Received ${pieceKey}`);
+        this.down.add(event.piece.block.length);
 
         await this.pieceHandler(event.piece, this);
-
         return;
       }
       case "PORT":
@@ -329,6 +322,7 @@ export class Peer {
         continue;
       }
 
+      // const message = this.buf.subarray(4, 4 + messageLen);
       const message = this.buf.subarray(4, 4 + messageLen);
 
       // console.log(`📥 MESSAGE id=${message[0]} length=${messageLen}`);
@@ -389,6 +383,18 @@ export class Peer {
 
   public get addr() {
     return `${this.remoteAddress},${this.port}`;
+  }
+
+  public takeStale(maxAgeMs: number): BlockRequest[] {
+    const now = Date.now();
+    const stale: BlockRequest[] = [];
+    for (const [key, { request, sentAt }] of this.pendingRequests) {
+      if (now - sentAt > maxAgeMs) {
+        stale.push(request);
+        this.pendingRequests.delete(key);
+      }
+    }
+    return stale;
   }
 }
 

@@ -11,8 +11,8 @@ export function formatBytes(n: number): string {
   return `${(n / 1024 ** 2).toFixed(2)} MB`;
 }
 
-function formatMbps(bytesPerSecond: number): string {
-  return `${((bytesPerSecond * 8) / 1e6).toFixed(2)} Mbps`; // megabit = 1e6 not 1024²
+function formatMBs(bytesPerSecond: number): string {
+  return `${(bytesPerSecond / 1e6).toFixed(2)} MB/s`; // megabit = 1e6 not 1024²
 }
 
 function formatEta(sec: number): string {
@@ -31,7 +31,7 @@ function PeerTable({ stats }: { stats: Stats }) {
       <Text color="cyan">Top peers</Text>
       {rows.map((p) => (
         <Text key={p.addr}>
-          {p.peerName.padEnd(22)} ↓ {formatMbps(p.down.rate).padStart(11)}
+          {p.peerName.padEnd(22)} ↓ {formatMBs(p.down.rate).padStart(11)}
           {/* {"  "}↑ {formatMbps(p.up.rate).padStart(11)} */}
         </Text>
       ))}
@@ -63,7 +63,7 @@ function App({ stats }: { stats: Stats }) {
       <Text color="green">
         Uploaded {formatBytes(stats.bytesUploaded)} total
       </Text>
-      <Text color="whiteBright">Speed: {formatMbps(stats.speed)}</Text>
+      <Text color="whiteBright">Speed: {formatMBs(stats.speed)}</Text>
       <Text color="whiteBright">ETA: {formatEta(stats.etaSeconds)}</Text>
       <Text color="whiteBright">Peers: {stats.peersConnectedCount}</Text>
       <Text color="whiteBright">Choked Peers: {stats.peersChoked}</Text>
@@ -71,7 +71,11 @@ function App({ stats }: { stats: Stats }) {
       <PeerTable stats={stats} />
 
       <Text color="yellowBright">
-        RSS: {formatBytes(memory.rss)} — Heap: {formatBytes(memory.heapUsed)}
+        RSS: {formatBytes(memory.rss)} | Heap: {formatBytes(memory.heapUsed)}
+      </Text>
+      <Text color="yellowBright">
+        External: {formatBytes(memory.external)} | ArrayBuffers:{" "}
+        {formatBytes(memory.arrayBuffers)}
       </Text>
     </Box>
   );
