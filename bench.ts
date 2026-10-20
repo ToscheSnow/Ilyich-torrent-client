@@ -21,5 +21,5 @@ run("createHash", () => createHash("sha1").update(buf).digest());
 
 // Bun's own hasher, check the Bun docs if this signature differs
 run("Bun.CryptoHasher", () =>
-  new Bun.CryptoHasher("sha1").update(buf).digest(),
+  ,
 );

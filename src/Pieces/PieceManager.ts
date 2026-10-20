@@ -226,7 +226,9 @@ export class PieceManager {
   }
 
   private verifyPiece(downloadedPiece: Buffer, actualHash: Buffer): boolean {
-    const pieceHash = createHash("sha1").update(downloadedPiece).digest();
+    const pieceHash = new Bun.CryptoHasher("sha1")
+      .update(downloadedPiece)
+      .digest();
 
     return actualHash.equals(pieceHash);
   }
