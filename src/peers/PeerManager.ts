@@ -109,7 +109,7 @@ export class PeerManager {
       socket.on("error", () => socket.destroy());
     });
 
-    server.listen(port, () => console.log(`🤞🏻 Listening on ${port}`));
+    server.listen(port, () => console.log(`\n🤞🏻 Listening on ${port}`));
     return server;
   }
 

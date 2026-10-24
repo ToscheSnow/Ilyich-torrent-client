@@ -108,7 +108,7 @@ export class Torrent {
       left: this.totalBytes - this.stats.downloadedBytes,
     };
 
-    this.udpTracker = new UDPTracker(
+    this.HTTPTracker = new HTTPTracker(
       decodedTorrent,
       args,
       (peerAddresses) => {
@@ -117,7 +117,7 @@ export class Torrent {
       this.recon,
     );
 
-    this.HTTPTracker = new HTTPTracker(
+    this.udpTracker = new UDPTracker(
       decodedTorrent,
       args,
       (peerAddresses) => {
@@ -128,11 +128,18 @@ export class Torrent {
   }
 
   public async start(listenPort = 6881) {
-    console.log(`Started torrent at ${new Date().toLocaleTimeString()}`);
+    console.log(`\nStarted torrent at ${new Date().toLocaleTimeString()}\n`);
+
+    this.recon.listen("DOWNLOAD_COMPLETE", () => {
+      // small delay so the stats UI can draw its final frame
+      setTimeout(() => process.exit(0), 500);
+    });
 
     await this.storageManager.initFileHandles();
 
-    console.log("Storage initialised");
+    console.log("\nStorage initialised");
+
+    console.log("Checking disk for existing pieces");
 
     await this.pieceManager.verifyAvailablePieces();
 
@@ -144,13 +151,8 @@ export class Torrent {
 
     startStatsUI(this.stats, this.recon);
 
-    this.udpTracker.announce();
     this.HTTPTracker.announce();
-
-    this.recon.listen("DOWNLOAD_COMPLETE", () => {
-      // small delay so the stats UI can draw its final frame
-      setTimeout(() => process.exit(0), 500);
-    });
+    this.udpTracker.announce();
   }
 
   private getTotalBytes(): number {

@@ -75,7 +75,7 @@ export class HTTPTracker {
       }
     }
 
-    console.log("HTTP trackers found ", http);
+    console.log("\nHTTP trackers found ", http);
 
     // "announce" is required by the original spec but guard anyway in case
     const announceBytes = decodedTorrent["announce"] as Uint8Array | undefined;
@@ -111,10 +111,10 @@ export class HTTPTracker {
       Promise.allSettled(this.urls.map((url) => fetchSingleReq(url)));
 
     this.announceTimer = setInterval(() => {
-      console.log("😈 Announced again ");
+      console.log("🎯 Sent HTTP Tracker Req");
 
       announceAll();
-    }, 30 * 1000);
+    }, 120 * 1000);
 
     announceAll();
   }

@@ -62,8 +62,6 @@ export class Stats {
     this.recon.listen("SEEDER:CONNECT", (peer) => this.seeders.add(peer));
 
     this.recon.once("DOWNLOAD_COMPLETE", () => {
-      
-      
       for (const off of handlers) off();
     });
   }
@@ -122,5 +120,13 @@ export class Stats {
   }
   public get seedPeers() {
     return this.seeders.size;
+  }
+
+  public get validatedBytes() {
+    return this.verifiedBytes;
+  }
+
+  public get bytesInProgress() {
+    return this.downloadedBytes - this.verifiedBytes;
   }
 }

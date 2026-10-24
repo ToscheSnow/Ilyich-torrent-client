@@ -8,11 +8,12 @@ import type { TorrentEvents } from "../torrent";
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n.toFixed(0)} B`;
   if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / 1024 ** 2).toFixed(2)} MB`;
+  if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(2)} MB`;
+  return `${(n / 1024 ** 3).toFixed(2)} GB`;
 }
 
-function formatMBs(bytesPerSecond: number): string {
-  return `${(bytesPerSecond / 1e6).toFixed(2)} MB/s`; // megabit = 1e6 not 1024²
+function formatMbps(bytesPerSecond: number): string {
+  return `${((bytesPerSecond * 8) / 1e6).toFixed(2)} Mbps/s`; // megabit = 1e6 not 1024²
 }
 
 function formatEta(sec: number): string {
@@ -31,7 +32,7 @@ function PeerTable({ stats }: { stats: Stats }) {
       <Text color="cyan">Top peers</Text>
       {rows.map((p) => (
         <Text key={p.addr}>
-          {p.peerName.padEnd(22)} ↓ {formatMBs(p.down.rate).padStart(11)}
+          {p.peerName.padEnd(22)} ↓ {formatMbps(p.down.rate).padStart(11)}
           {/* {"  "}↑ {formatMbps(p.up.rate).padStart(11)} */}
         </Text>
       ))}
@@ -56,27 +57,43 @@ function App({ stats }: { stats: Stats }) {
 
   return (
     <Box flexDirection="column" borderStyle="round" padding={1}>
-      <Text color="whiteBright">
-        Progress: {stats.piecesCompletedCount} pieces ({pct}%) —{" "}
-        {formatBytes(stats.downloadedBytes)} total
-      </Text>
-      <Text color="green">
-        Uploaded {formatBytes(stats.bytesUploaded)} total
-      </Text>
-      <Text color="whiteBright">Speed: {formatMBs(stats.speed)}</Text>
-      <Text color="whiteBright">ETA: {formatEta(stats.etaSeconds)}</Text>
-      <Text color="whiteBright">Peers: {stats.peersConnectedCount}</Text>
-      <Text color="whiteBright">Choked Peers: {stats.peersChoked}</Text>
-      <Text color="whiteBright">Seeders: {stats.seedPeers}</Text>
-      <PeerTable stats={stats} />
+      <Box flexDirection="column">
+        <Text color="greenBright">
+          Progress: {stats.piecesCompletedCount} pieces ({pct}%) —{" "}
+          {formatBytes(stats.validatedBytes)} total
+        </Text>
+        <Text color="green">
+          Uploaded {formatBytes(stats.bytesUploaded)} total
+        </Text>
+        <Box flexDirection="column">
+          <Text color="whiteBright">Speed: {formatMbps(stats.speed)}</Text>
+          <Text color="whiteBright">
+            Downloaded (Not written to Disk){" "}
+            {formatBytes(stats.bytesInProgress)}
+          </Text>
+          <Text color="whiteBright">ETA: {formatEta(stats.etaSeconds)}</Text>
+        </Box>
+      </Box>
 
-      <Text color="yellowBright">
-        RSS: {formatBytes(memory.rss)} | Heap: {formatBytes(memory.heapUsed)}
-      </Text>
-      <Text color="yellowBright">
-        External: {formatBytes(memory.external)} | ArrayBuffers:{" "}
-        {formatBytes(memory.arrayBuffers)}
-      </Text>
+      <Box flexDirection="column" marginTop={1}>
+        <Text color="whiteBright">Peers: {stats.peersConnectedCount}</Text>
+        <Text color="whiteBright">Choked Peers: {stats.peersChoked}</Text>
+        <Text color="whiteBright">Seeders: {stats.seedPeers}</Text>
+      </Box>
+
+      <Box marginTop={1}>
+        <PeerTable stats={stats} />
+      </Box>
+
+      <Box flexDirection="column" marginTop={1}>
+        <Text color="yellowBright">
+          RSS: {formatBytes(memory.rss)} | Heap: {formatBytes(memory.heapUsed)}
+        </Text>
+        <Text color="yellowBright">
+          External: {formatBytes(memory.external)} | ArrayBuffers:{" "}
+          {formatBytes(memory.arrayBuffers)}
+        </Text>
+      </Box>
     </Box>
   );
 }

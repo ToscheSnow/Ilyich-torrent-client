@@ -1,13 +1,11 @@
 import { BLOCK_SIZE } from "../client";
 import type { TorrentMetadata } from "../types/metadataTypes";
 import type { BlockRequest, Piece } from "../types/peerTypes";
-import { createHash } from "crypto";
 import type { StorageManager } from "../fileAssembly/StorageManager";
 import type { Peer } from "../peers/peer";
 import type { Recon } from "../Emitter/Recon";
 import type { TorrentEvents } from "../torrent";
 import { formatBytes } from "../utils/stats-ui";
-import { timed, timedAsync } from "../../perf";
 
 export class PieceManager {
   private totalLength: number;
@@ -151,18 +149,14 @@ export class PieceManager {
 
     this.recon.announce("BLOCK:RECEIVED", piece);
 
-    if (timed("isComplete", () => this.isCompletePiece(pieceIdx))) {
-      const assembled = timed("assemble", () => this.assemblePiece(pieceIdx));
+    if (this.isCompletePiece(pieceIdx)) {
+      const assembled = this.assemblePiece(pieceIdx);
       // console.log(`🧩 PIECE ${pieceIdx} COMPLETE`);
 
       if (
-        !timed("hash", () =>
-          this.verifyPiece(
-            assembled,
-            Buffer.from(
-              this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20),
-            ),
-          ),
+        !this.verifyPiece(
+          assembled,
+          Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20)),
         )
       ) {
         this.clearPieceBlocks(pieceIdx);
@@ -319,7 +313,7 @@ export class PieceManager {
     }
 
     const end = performance.now();
-    console.log(`${(end - startTime).toFixed(2)} ms`);
+    console.log(`Took ${((end - startTime) / 1000).toFixed(2)} secs`);
     console.log(`Found ${this.verifiedPieces.size} already on disk`);
   }
 

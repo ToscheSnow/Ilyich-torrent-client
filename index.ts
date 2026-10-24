@@ -9,6 +9,4 @@ const listenPort = Number(args[2] ?? 6881);
 
 const torrent = new Torrent(openFile(filePath), downloadPath);
 
-// startStageReport()
-
 torrent.start(listenPort);

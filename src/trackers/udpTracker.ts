@@ -9,6 +9,13 @@ import type { PeerAddress } from "../peers/PeerManager";
 import type { Recon } from "../Emitter/Recon";
 import type { TorrentEvents } from "../torrent";
 
+class SilentParseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "SilentParseError";
+  }
+}
+
 type TrackerRequest = {
   host: string;
   port: number;
@@ -98,6 +105,7 @@ export class UDPTracker {
     new AsyncMessageQueue<Datagram>();
 
   private silent = 0;
+  private urls: string[];
 
   constructor(
     private decodedTorrent: BencodeDict,
@@ -105,11 +113,14 @@ export class UDPTracker {
     private onResponse: (peersAddresses: PeerAddress[]) => void,
     private recon: Recon<TorrentEvents>,
   ) {
+    this.urls = this.getUDPTrackers(this.decodedTorrent);
+
     this.socket.on("message", (message, { address, port }) => {
       try {
         const event = this.parseEventFromMessage(message, address, port);
         this.incomingMessageQueue.push(event);
       } catch (err) {
+        if (err instanceof SilentParseError) return;
         if (err instanceof Error) console.log(err.message);
       }
     });
@@ -123,7 +134,7 @@ export class UDPTracker {
     this.recon.listen("DOWNLOAD_COMPLETE", () => {
       console.log("📦 Disconnect UDP TRACKER");
 
-      this.disconnect;
+      this.disconnect();
     });
 
     this.startIncomingLoop();
@@ -134,7 +145,12 @@ export class UDPTracker {
     this.incomingMessageQueue.close();
     this.outgoingMessageQueue.close();
 
+    for (const [_, timer] of this.retries) {
+      timer.close();
+    }
+
     this.retries.clear();
+
     this.pendingRequests.clear();
     this.trackerStates.clear();
 
@@ -184,7 +200,9 @@ export class UDPTracker {
 
       case 1:
         if (message.length < 20) {
-          throw new Error("Received announce request of insufficient length");
+          throw new SilentParseError(
+            "Received announce request of insufficient length",
+          );
         }
 
         return {
@@ -379,9 +397,7 @@ export class UDPTracker {
             transactionId: announceTransactionId,
           });
         },
-        DELAY *
-          (1 << triesDone) *
-          (Math.floor(Math.random() * (1.25 - 0.75 + 1)) + 0.75),
+        DELAY * (1 << triesDone) * (0.75 + Math.random() * 0.5),
       ),
     );
 
@@ -436,7 +452,7 @@ export class UDPTracker {
   }
 
   private getUDPTrackers(decodedTorrent: BencodeDict): string[] {
-    // use a Set so a urls appearing in both announce-list and announce
+    // use a Set so a this.urls appearing in both announce-list and announce
     // doesn't get announced to twice😂
     const udpURLs = new Set<string>();
     const decoder = new TextDecoder();
@@ -521,9 +537,8 @@ export class UDPTracker {
 
   public async announce() {
     // send requests to tracker at the same time
-    const urls = this.getUDPTrackers(this.decodedTorrent);
 
-    const connect = async (url: string) => {
+    const connect = async (url: string, flag = false) => {
       let urlObj = new URL(url);
       let portStr = new URL(url).port;
       if (!portStr) return;
@@ -544,7 +559,7 @@ export class UDPTracker {
 
         this.sendConnectRequest(host, port, 0);
       } catch {
-        console.log(`Tracker ${url} failed`);
+        if (flag) console.log(`Tracker ${url} failed`);
       }
     };
 
@@ -552,7 +567,7 @@ export class UDPTracker {
       () => {
         console.log("😋 Sent UDP Tracker request");
 
-        Promise.allSettled(urls.map((url) => connect(url)));
+        Promise.allSettled(this.urls.map((url) => connect(url)));
       },
       1 * 60 * 1000,
     );
@@ -561,6 +576,6 @@ export class UDPTracker {
     //   console.log(`Silent trackers: ${this.silent}`);
     // }, 10 * 1000);
 
-    Promise.allSettled(urls.map((url) => connect(url)));
+    Promise.allSettled(this.urls.map((url) => connect(url, true)));
   }
 }
