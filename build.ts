@@ -1,12 +1,13 @@
 const stub = {
   name: "stub-devtools",
   setup(build: any) {
-    build.target({ filter: /^react-devtools-core$/ }, () => ({
+    build.onResolve({ filter: /^react-devtools-core$/ }, () => ({
       path: "react-devtools-core",
       namespace: "stub",
     }));
+
     build.onLoad({ filter: /.*/, namespace: "stub" }, () => ({
-      contents: "export default {}",
+      contents: "export default {};",
       loader: "js",
     }));
   },
@@ -19,9 +20,16 @@ const targets = [
 ] as const;
 
 for (const { target, outfile } of targets) {
-  await Bun.build({
+  const result = await Bun.build({
     entrypoints: ["./index.ts"],
     compile: { target, outfile },
     plugins: [stub],
   });
+
+  if (!result.success) {
+    console.error(`Build failed for ${target}:`);
+    console.error(result.logs);
+    process.exitCode = 1;
+    break;
+  }
 }
