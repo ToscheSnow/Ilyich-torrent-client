@@ -24,7 +24,7 @@ export class RateMeter {
       this.ema = inst;
       this.primed = true;
     } else {
-      const alpha = 1 - Math.exp(-dt / this.tauMs); // 👈 new trick
+      const alpha = 1 - Math.exp(-dt / this.tauMs);
       this.ema += alpha * (inst - this.ema);
     }
   }

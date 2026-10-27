@@ -11,8 +11,11 @@ import { Socket } from "net";
 import { decodeIncomingPeerMessage } from "./parseEventFromMessage";
 import type { Recon } from "../Emitter/Recon";
 import type { TorrentEvents } from "../torrent";
-import { normalizeAddr } from "../utils/normaliseAddr";
-import { RateMeter } from "../RateMeter";
+import { normalizeAddr } from "./normaliseAddr";
+import { RateMeter } from "../utils/RateMeter";
+
+const MAX_MESSAGE_LEN = 16 * 1024 + 9;
+const MAX_JUNK_BYTES = 5 * 1024 * 1024; // 10 MiB
 
 export class Peer {
   private remoteAddress;
@@ -21,6 +24,7 @@ export class Peer {
   private buf: Buffer = Buffer.alloc(0);
   private availablePieces: Set<number> = new Set<number>();
   private disconnected = false;
+  private junkBytes = 0;
 
   private pendingRequests = new Map<string, PendingRequest>();
   private reqQueue: AsyncMessageQueue<Buffer> = new AsyncMessageQueue<Buffer>();
@@ -45,9 +49,7 @@ export class Peer {
     this.port = this.socket.remotePort ?? 0;
 
     this.socket.on("data", this.onData);
-
     this.socket.on("close", this.disconnect);
-
     this.socket.on("error", this.disconnect);
   }
 
@@ -61,6 +63,8 @@ export class Peer {
 
       this.disconnect();
     });
+
+    this.recon.listen("PIECE:COMPLETED", (pieceIdx) => this.HAVE_Req(pieceIdx));
   }
 
   private disconnect = () => {
@@ -77,7 +81,7 @@ export class Peer {
     this.recon.announce("PEER:DISCONNECT", this);
   };
 
-  public async processEvent(event: PeerEvent): Promise<void> {
+  private async processEvent(event: PeerEvent): Promise<void> {
     switch (event.type) {
       case "CHOKE":
         this.state.peerChoking = true;
@@ -156,6 +160,12 @@ export class Peer {
         const pieceKey = `${event.piece.pieceIdx},${event.piece.offset}`;
         const pendingReq = this.pendingRequests.get(pieceKey);
 
+        if (!pendingReq) {
+          this.junkBytes += event.piece.block.length;
+          if (this.junkBytes > MAX_JUNK_BYTES) this.ban("wasted > 10MB");
+          return;
+        }
+
         if (
           pendingReq &&
           pendingReq.request.length !== event.piece.block.length
@@ -204,28 +214,7 @@ export class Peer {
     this.reqQueue.push(buf);
   }
 
-  // cancel isnt used yet of now
-
-  // public cancelReq(req: BlockRequest): void {
-  //   const { pieceIdx, offset, length } = req;
-  //   //if not valid request throw
-  //   const buf = Buffer.alloc(17);
-
-  //   // 13 bytes always in hex for cancel request
-  //   buf.writeUInt32BE(13, 0); // length
-
-  //   // message id 8 for canceling a request
-  //   buf[4] = 0x08; //
-
-  //   buf.writeUInt32BE(pieceIdx, 5);
-  //   buf.writeUInt32BE(offset, 9);
-  //   buf.writeUInt32BE(length, 13);
-
-  //   this.pendingRequests.delete(`${req.pieceIdx},${req.offset}`);
-  //   this.reqQueue.push(buf);
-  // }
-
-  public Interested_REQ(): void {
+  private Interested_REQ(): void {
     const buf = Buffer.from([0x00, 0x00, 0x00, 0x01, 0x02]);
 
     this.state.amInterested = true;
@@ -245,8 +234,7 @@ export class Peer {
   }
 
   public startAfterHandshake(initialData: Buffer, bitfield: Buffer) {
-    this.receiveInitialData(initialData);
-
+    if (initialData.length > 0) this.onData(initialData);
     const req = this.sendBitfieldReq(bitfield);
 
     this.reqQueue.push(req);
@@ -257,11 +245,9 @@ export class Peer {
     const buf = Buffer.alloc(bitfield.length + 1 + 4);
 
     buf.writeUInt32BE(bitfield.length + 1, 0);
-
     buf[4] = 0x5;
 
     buf.set(bitfield, 5);
-
     return buf;
   }
 
@@ -277,10 +263,6 @@ export class Peer {
         this.disconnect();
         break;
       }
-
-      // const event = decodeIncomingPeerMessage(message!);
-
-      // await this.processEvent(event);
     }
   }
 
@@ -292,19 +274,7 @@ export class Peer {
     return this.availablePieces;
   }
 
-  // public get isOverloaded(): boolean {
-  //   return this.pendingRequests.size >= this.state.maxInFlight;
-  // }
-
-  public receiveInitialData(data: Buffer) {
-    if (data.length === 0) return;
-
-    this.onData(data);
-  }
-
-  public onData = (chunk: Buffer) => {
-    // this.buf = timed("concat", () => Buffer.concat([this.buf, chunk]));
-    // this.buf = Buffer.concat([this.buf, chunk]);
+  private onData = (chunk: Buffer) => {
     this.buf = this.buf.length === 0 ? chunk : Buffer.concat([this.buf, chunk]);
 
     while (true) {
@@ -312,6 +282,8 @@ export class Peer {
       if (this.buf.length < 4) break;
 
       const messageLen = this.buf.readUInt32BE(0);
+      if (messageLen > MAX_MESSAGE_LEN)
+        return this.ban(`oversize msg ${messageLen}`);
 
       // Need the complete message
       if (this.buf.length < 4 + messageLen) break;
@@ -336,17 +308,15 @@ export class Peer {
     console.log(`📤 UNCHOKE PEER `);
 
     const unchokeBuf = Buffer.alloc(5);
-
     // length afterwards is 1
     unchokeBuf.writeUInt32BE(1, 0);
 
     // Unchoke message id is 1
     unchokeBuf[4] = 0x1;
-
     this.reqQueue.push(unchokeBuf);
   }
 
-  public HAVE_Req(pieceIdx: number) {
+  private HAVE_Req(pieceIdx: number) {
     const haveBuf = Buffer.alloc(9);
 
     haveBuf.writeUInt32BE(5, 0);
@@ -364,13 +334,42 @@ export class Peer {
     req.writeUInt32BE(1 + 4 + 4 + blockBuf.length, 0);
     // message id for piece request is 7;
     req[4] = 0x7;
-
     req.writeUint32BE(pieceIdx, 5);
     req.writeUint32BE(offset, 9);
 
     req.set(blockBuf, 13);
-
     this.reqQueue.push(req);
+  }
+
+  public takeStale(maxAgeMs: number): BlockRequest[] {
+    const now = Date.now();
+    const stale: BlockRequest[] = [];
+    for (const [key, { request, sentAt }] of this.pendingRequests) {
+      if (now - sentAt > maxAgeMs) {
+        stale.push(request);
+        this.pendingRequests.delete(key);
+      }
+    }
+    return stale;
+  }
+
+  public ban(reason: string) {
+    console.log(`🔨 banning ${this.remoteAddress}: ${reason}`);
+
+    this.recon.announce("PEER:BAN", this);
+    this.disconnect();
+  }
+
+  public addJunk(bytes: number) {
+    this.junkBytes += bytes;
+    if (this.junkBytes > MAX_JUNK_BYTES)
+      this.ban(`wasted ${this.junkBytes} bytes`);
+  }
+
+  /************************************************************************ */
+  // API SECTION
+  public get ip() {
+    return this.remoteAddress;
   }
 
   public get inFlight(): number {
@@ -385,17 +384,7 @@ export class Peer {
     return `${this.remoteAddress},${this.port}`;
   }
 
-  public takeStale(maxAgeMs: number): BlockRequest[] {
-    const now = Date.now();
-    const stale: BlockRequest[] = [];
-    for (const [key, { request, sentAt }] of this.pendingRequests) {
-      if (now - sentAt > maxAgeMs) {
-        stale.push(request);
-        this.pendingRequests.delete(key);
-      }
-    }
-    return stale;
-  }
+  /************************************************************************ */
 }
 
 // dont remove this is for the factory if you use a shared state all peers get the same reference

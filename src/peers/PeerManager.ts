@@ -8,6 +8,7 @@ import { BITFIELD_BUF } from "./bitfield";
 import type { TorrentEvents } from "../torrent";
 import type { Recon } from "../Emitter/Recon";
 import { parseClient } from "./clientName";
+import { normalizeAddr } from "./normaliseAddr";
 
 export type PeerAddress = {
   host: string;
@@ -16,7 +17,7 @@ export type PeerAddress = {
 
 export class PeerManager {
   private connectingPeers: Set<string> = new Set<string>();
-
+  private badPeers = new Set<string>();
   constructor(
     private activePeers: Set<Peer>,
     private infoHash: Buffer,
@@ -50,10 +51,18 @@ export class PeerManager {
     this.recon.listen("PEER:DISCONNECT", (peer) => {
       this.activePeers.delete(peer);
     });
+
+    this.recon.listen("PEER:BAN", (peer) => {
+      this.badPeers.add(normalizeAddr(peer.ip) ?? peer.ip);
+    });
   }
 
   startListening(port: number) {
     const server = net.createServer((socket) => {
+      if (this.badPeers.has(normalizeAddr(socket.remoteAddress) ?? "")) {
+        socket.destroy();
+        return;
+      }
       const ourHandshake = handshakeBuf(this.infoHash, CLIENT_ID_BYTES);
       let buf = Buffer.alloc(0);
 
@@ -123,6 +132,7 @@ export class PeerManager {
   }
 
   connectPeer({ host, port }: PeerAddress) {
+    if (this.badPeers.has(normalizeAddr(host) ?? host)) return;
     const peerKey = `${host}:${port}`;
 
     if (this.connectingPeers.has(peerKey)) return;
@@ -133,7 +143,6 @@ export class PeerManager {
 
     const torrentHandshake = handshakeBuf(this.infoHash, CLIENT_ID_BYTES);
 
-    if (host === "10.97.29.160") return;
     const socket = net.createConnection({ host, port });
 
     let buf = Buffer.alloc(0);

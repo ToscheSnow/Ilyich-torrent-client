@@ -6,5 +6,3 @@ export type trackerURLParams = {
   totalBytes: number;
   downloaded: number;
 };
-
-

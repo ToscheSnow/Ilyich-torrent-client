@@ -14,6 +14,8 @@ enum PEER_MESSAGE_ID {
   EXTENDED = 20,
 }
 
+
+
 export function decodeIncomingPeerMessage(message: Buffer): PeerEvent {
   // messageID always takes up 1 byte
   const messageID = message.readUInt8();

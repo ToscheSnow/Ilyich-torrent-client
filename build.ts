@@ -1,7 +1,7 @@
 const stub = {
   name: "stub-devtools",
   setup(build: any) {
-    build.onResolve({ filter: /^react-devtools-core$/ }, () => ({
+    build.target({ filter: /^react-devtools-core$/ }, () => ({
       path: "react-devtools-core",
       namespace: "stub",
     }));
@@ -13,8 +13,9 @@ const stub = {
 };
 
 const targets = [
-  { target: "bun-darwin-arm64", outfile: "./dist/ilyich-cli-mac" },
-  { target: "bun-windows-x64", outfile: "./dist/ilyich-cli-win" },
+  { target: "bun-darwin-arm64", outfile: "./dist/ilyich-mac" },
+  { target: "bun-windows-x64", outfile: "./dist/ilyich-win-x64" },
+  { target: "bun-linux-x64", outfile: "./dist/ilyich-cli-linux-x64" },
 ] as const;
 
 for (const { target, outfile } of targets) {

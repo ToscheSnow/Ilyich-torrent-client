@@ -1,15 +1,15 @@
 import { BLOCK_SIZE } from "../client";
 import type { TorrentMetadata } from "../types/metadataTypes";
 import type { BlockRequest, Piece } from "../types/peerTypes";
-import type { StorageManager } from "../fileAssembly/StorageManager";
+import type { StorageManager } from "../Storage/StorageManager";
 import type { Peer } from "../peers/peer";
-import type { Recon } from "../Emitter/Recon";
 import type { TorrentEvents } from "../torrent";
 import { formatBytes } from "../utils/stats-ui";
+import { PieceValidator } from "./PieceValidator";
+import type { Recon } from "../Emitter/Recon";
 
 export class PieceManager {
   private totalLength: number;
-  private pieceLength: number;
   private downloadCompleted = false;
 
   private blocks: Map<number, Buffer> = new Map<number, Buffer>();
@@ -17,13 +17,16 @@ export class PieceManager {
   private verifiedPieces: Set<number> = new Set<number>();
   private numPieces: number;
   private blocksPerPiece = 0;
+  // pieceIdx -> (peer -> bytes they gave us for that piece)
+  private contributors = new Map<number, Map<Peer, number>>();
+  public validator: PieceValidator;
 
   public constructor(
     { pieceHashes, pieceLength, ...meta }: TorrentMetadata,
     private storageManager: StorageManager,
     private recon: Recon<TorrentEvents>,
   ) {
-    this.pieceLength = pieceLength;
+    // this.pieceLength = pieceLength;
     this.hashes = pieceHashes;
 
     if ("length" in meta) {
@@ -38,11 +41,18 @@ export class PieceManager {
     this.numPieces = Math.ceil(this.totalLength / pieceLength);
 
     this.blocksPerPiece = Math.ceil(pieceLength / BLOCK_SIZE);
+    this.validator = new PieceValidator(this.totalLength, pieceLength);
 
-    console.log("Piece length:", formatBytes(this.pieceLength));
+    console.log("Piece length:", formatBytes(pieceLength));
     console.log("Piece count:", this.numPieces);
 
     this.completeDownloadHandler();
+  }
+
+  private recordBlock(pieceIdx: number, peer: Peer, bytes: number) {
+    let m = this.contributors.get(pieceIdx);
+    if (!m) this.contributors.set(pieceIdx, (m = new Map()));
+    m.set(peer, (m.get(peer) ?? 0) + bytes);
   }
 
   public completeDownloadHandler() {
@@ -57,71 +67,23 @@ export class PieceManager {
     this.recon.announce("DOWNLOAD_COMPLETE");
   }
 
-  //no async factory required i realised since torrent class initialises storage manager explicitly
+  private failStreak = 0;
 
-  // public static async create(
-  //   { pieceHashes, pieceLength, ...meta }: TorrentMetadata,
-  //   storageManager: StorageManager,
-  //   pieceStatIncrement: () => void,
-  //   bytesDownloadedIncrement: (downloadedBytes: number) => void,
-  // ): Promise<PieceManager> {
-  //   const pieceManager = new PieceManager(
-  //     { pieceHashes, pieceLength, ...meta },
-  //     storageManager,
-  //     pieceStatIncrement,
-  //     bytesDownloadedIncrement,
-  //   );
+  private blamePeers(pieceIdx: number) {
+    const m = this.contributors.get(pieceIdx);
+    this.contributors.delete(pieceIdx);
+    if (!m) return;
 
-  //   await pieceManager.initAvailablePieces();
-  //   return pieceManager;
-  // }
+    // many fails in a row from many peers = probably OUR bug, don't ban anyone
+    if (++this.failStreak > 20) return;
 
-  get pieceCount(): number {
-    return Math.ceil(this.totalLength / this.pieceLength);
-  }
-
-  private getPieceLength(pieceIdx: number): number {
-    if (pieceIdx < 0 || pieceIdx >= this.pieceCount) {
-      throw new Error("Invalid piece index");
+    if (m.size === 1) {
+      for (const peer of m.keys()) {
+        peer.ban(`sole sender of corrupt piece ${pieceIdx}`);
+      }
+    } else {
+      for (const [peer, bytes] of m) peer.addJunk(bytes);
     }
-
-    if (pieceIdx === this.pieceCount - 1) {
-      return this.totalLength - pieceIdx * this.pieceLength;
-    }
-
-    return this.pieceLength;
-  }
-
-  private getBlockCount(pieceIdx: number) {
-    const length = this.getPieceLength(pieceIdx);
-
-    return Math.ceil(length / BLOCK_SIZE);
-  }
-
-  public getBlockLength(pieceIdx: number, offset: number): number {
-    const pieceLength = this.getPieceLength(pieceIdx);
-
-    if (offset < 0 || offset >= pieceLength) {
-      throw new Error("Invalid block offset");
-    }
-
-    return Math.min(BLOCK_SIZE, pieceLength - offset);
-  }
-
-  private isValidBlock(
-    pieceIdx: number,
-    offset: number,
-    length: number,
-  ): boolean {
-    if (pieceIdx < 0 || pieceIdx >= this.pieceCount) {
-      return false;
-    }
-
-    if (offset < 0 || offset >= this.getPieceLength(pieceIdx)) {
-      return false;
-    }
-
-    return length === this.getBlockLength(pieceIdx, offset);
   }
 
   public receiveBlock = async (piece: Piece, peer: Peer) => {
@@ -129,7 +91,7 @@ export class PieceManager {
 
     if (this.verifiedPieces.has(pieceIdx)) return;
 
-    if (!this.isValidBlock(pieceIdx, offset, block.length)) {
+    if (!this.validator.isValidBlock(pieceIdx, offset, block.length)) {
       console.warn("Invalid piece receiveBlock");
       return;
     }
@@ -138,6 +100,7 @@ export class PieceManager {
 
     if (this.blocks.has(blockKey)) return;
     this.blocks.set(blockKey, block);
+    this.recordBlock(pieceIdx, peer, block.length);
 
     // const storedForPiece =
     //   this.getBlockCount(pieceIdx) - this.getNeededBlocks(pieceIdx).length;
@@ -159,10 +122,13 @@ export class PieceManager {
           Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20)),
         )
       ) {
+        this.blamePeers(pieceIdx);
         this.clearPieceBlocks(pieceIdx);
-        this.recon.announce("PIECE:FAILED", pieceIdx); // 👈 add to TorrentEvents too
+        this.recon.announce("PIECE:FAILED", pieceIdx);
         return;
       }
+      this.failStreak = 0;
+
       // console.log(
       //   // `🔐 PIECE ${pieceIdx} is valid hash valid`,
       //   Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20)),
@@ -170,13 +136,13 @@ export class PieceManager {
       await this.storageManager.writePiece(pieceIdx, assembled);
 
       this.verifiedPieces.add(pieceIdx);
+      this.contributors.delete(pieceIdx);
 
       this.recon.announce("PIECE:COMPLETED", pieceIdx, assembled.length);
 
       // console.log(`Written piece ${pieceIdx} to disk`);
       this.clearPieceBlocks(pieceIdx);
 
-      peer.HAVE_Req(pieceIdx);
       this.completeDownloadHandler();
       return;
 
@@ -185,7 +151,7 @@ export class PieceManager {
   };
 
   private isCompletePiece(pieceIdx: number): boolean {
-    const numBlocks = this.getBlockCount(pieceIdx);
+    const numBlocks = this.validator.getBlockCount(pieceIdx);
 
     for (let i = 0; i < numBlocks; i++) {
       const offset = i * BLOCK_SIZE;
@@ -207,8 +173,8 @@ export class PieceManager {
   }
 
   private assemblePiece(pieceIdx: number): Buffer {
-    const buf = Buffer.alloc(this.getPieceLength(pieceIdx));
-    const blocks = this.getBlockCount(pieceIdx);
+    const buf = Buffer.alloc(this.validator.getPieceLength(pieceIdx));
+    const blocks = this.validator.getBlockCount(pieceIdx);
 
     for (let i = 0; i < blocks; i++) {
       const key = this.key(pieceIdx, i * BLOCK_SIZE);
@@ -232,11 +198,11 @@ export class PieceManager {
       return [];
     }
 
-    const numBlocks = this.getBlockCount(pieceIdx);
+    const numBlocks = this.validator.getBlockCount(pieceIdx);
     const neededBlocks: BlockRequest[] = [];
 
     for (let i = 0; i < numBlocks; i++) {
-      const blockSize = this.getBlockLength(pieceIdx, i * BLOCK_SIZE);
+      const blockSize = this.validator.getBlockLength(pieceIdx, i * BLOCK_SIZE);
       const key = this.key(pieceIdx, i * BLOCK_SIZE);
 
       if (!this.blocks.has(key)) {
@@ -255,7 +221,7 @@ export class PieceManager {
     const CONCURRENT_READS = 1;
 
     const readAndVerifyPiece = async (pieceIdx: number) => {
-      const pieceLen = this.getPieceLength(pieceIdx);
+      const pieceLen = this.validator.getPieceLength(pieceIdx);
 
       const pieceBuf = await this.storageManager.readBlock(pieceIdx, pieceLen);
 
@@ -272,28 +238,7 @@ export class PieceManager {
       this.verifiedPieces.add(pieceIdx);
       this.recon.announce("PIECE:EXISTING", pieceLen);
     };
-    // worker function to check and verify written pieces
-    // const readAndVerifyPiece = async (pieceIdx: number) => {
-    //   const pieceLen = this.getPieceLength(pieceIdx);
-    //   const pieceBuf: Buffer = await this.storageManager.readBlock(
-    //     pieceIdx,
-    //     pieceLen,
-    //   );
 
-    //   if (
-    //     !this.verifyPiece(
-    //       pieceBuf,
-    //       Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20)),
-    //     )
-    //   ) {
-    //     this.clearPieceBlocks(pieceIdx);
-    //     return;
-    //   }
-
-    //   this.verifiedPieces.add(pieceIdx);
-
-    //   this.recon.announce("PIECE:EXISTING", pieceLen);
-    // };
     const startTime = performance.now();
 
     for (
@@ -318,7 +263,7 @@ export class PieceManager {
   }
 
   private clearPieceBlocks(pieceIdx: number) {
-    const blockCount = this.getBlockCount(pieceIdx);
+    const blockCount = this.validator.getBlockCount(pieceIdx);
 
     for (let i = 0; i < blockCount; i++) {
       this.blocks.delete(this.key(pieceIdx, i * BLOCK_SIZE));
@@ -349,7 +294,7 @@ export class PieceManager {
   public allOffsets(pieceIdx: number): number[] {
     if (this.verifiedPieces.has(pieceIdx)) return [];
     const offs: number[] = [];
-    for (let i = this.getBlockCount(pieceIdx) - 1; i >= 0; i--) {
+    for (let i = this.validator.getBlockCount(pieceIdx) - 1; i >= 0; i--) {
       if (!this.blocks.has(this.key(pieceIdx, i * BLOCK_SIZE)))
         offs.push(i * BLOCK_SIZE);
     }
@@ -366,5 +311,9 @@ export class PieceManager {
 
   public hasBlock(pieceIdx: number, offset: number): boolean {
     return this.blocks.has(this.key(pieceIdx, offset));
+  }
+
+  public get pieceCount(): number {
+    return this.numPieces;
   }
 }

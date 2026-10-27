@@ -1,4 +1,4 @@
-import type { trackerURLParams } from "../types/tracker";
+import type { trackerURLParams } from "../types/trackerTypes";
 import { CLIENT_ID_BYTES } from "../client";
 
 export function httpTrackerQuery({

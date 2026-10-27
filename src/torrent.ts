@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { BencodeDecoder } from "./fileParsing/parserDecoder";
 
-import { StorageManager } from "./fileAssembly/StorageManager";
+import { StorageManager } from "./Storage/StorageManager";
 import { PieceManager } from "./Pieces/PieceManager";
 import { PeerManager } from "./peers/PeerManager";
 import type { Peer } from "./peers/peer";
@@ -14,10 +14,10 @@ import { Stats } from "./utils/StatsReporter";
 import { Scheduler } from "./Scheduler/scheduler";
 import type { BencodeDict } from "./types/parserTypes";
 import { getMeta } from "./fileParsing/meta";
-import { Recon } from "./Emitter/Recon";
 import type { BlockRequest, Piece } from "./types/peerTypes";
 import { startStatsUI } from "./utils/stats-ui";
 import { UDPTracker } from "./trackers/udpTracker";
+import { Recon } from "./Emitter/Recon";
 
 export type TorrentEvents = {
   "PEER:CONNECT": [Peer];
@@ -34,6 +34,7 @@ export type TorrentEvents = {
   "PIECE:EXISTING": [number];
   "SEEDER:CONNECT": [Peer];
   "PIECE:FAILED": [number];
+  "PEER:BAN": [Peer];
 };
 
 export class Torrent {
@@ -83,9 +84,7 @@ export class Torrent {
 
     this.peerManager = new PeerManager(
       this.activePeers,
-      // new Set<PeerAddress>(),
       this.infoHash,
-      // 10,
       this.recon,
       this.pieceManager.receiveBlock,
       this.pieceManager.getBlock,

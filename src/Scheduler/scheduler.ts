@@ -34,7 +34,7 @@ export class Scheduler {
     //   Math.floor((128 * 1024 * 1024) / (blocksPerPiece * BLOCK_SIZE)),
     // );
 
-    this.MAX_IN_FLIGHT = Math.max(50, this.blocksPerPiece / 4);
+    this.MAX_IN_FLIGHT = Math.max(50, this.blocksPerPiece / 2);
   }
 
   // ---------- keys ----------
@@ -179,7 +179,7 @@ export class Scheduler {
       return {
         pieceIdx: idx,
         offset,
-        length: this.pieceManager.getBlockLength(idx, offset),
+        length: this.pieceManager.validator.getBlockLength(idx, offset),
       };
     }
 

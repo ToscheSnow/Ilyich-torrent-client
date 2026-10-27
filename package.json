@@ -15,5 +15,8 @@
     "bittorrent-tracker": "^11.2.3",
     "ink": "^7.1.1",
     "react": "^19.3.0"
+  },
+  "scripts": {
+    "build": "bun build.ts"
   }
 }
