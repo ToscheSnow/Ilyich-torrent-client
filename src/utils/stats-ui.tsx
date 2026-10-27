@@ -2,9 +2,6 @@ import { useState, useEffect } from "react";
 import { Text, Box, render } from "ink";
 import { memoryUsage } from "node:process";
 import type { Stats } from "./StatsReporter";
-import type { Recon } from "../Emitter/Recon";
-import type { TorrentEvents } from "../torrent";
-import { heapStats } from "bun:jsc";
 
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n.toFixed(0)} B`;
@@ -55,7 +52,6 @@ function App({ stats }: { stats: Stats }) {
 
   const pct = (stats.progress * 100).toFixed(1);
   const memory = memoryUsage();
-  const heap = heapStats();
 
   return (
     <Box flexDirection="column" borderStyle="round" padding={1}>
@@ -91,23 +87,15 @@ function App({ stats }: { stats: Stats }) {
         <Text color="yellowBright">
           RSS: {formatBytes(memory.rss)} | Heap: {formatBytes(memory.heapUsed)}
         </Text>
-        {/* <Text color="yellowBright">
-          External: {formatBytes(memory.external)} | ArrayBuffers:{" "}
-          {formatBytes(memory.arrayBuffers)}
-        </Text> */}
-
         <Text color="yellowBright">
           External: {formatBytes(memory.external)} | ArrayBuffers:{" "}
-          {formatBytes(memory.arrayBuffers)} | JSC heap:{" "}
-          {formatBytes(heap.heapSize)} | JSC capacity:{" "}
-          {formatBytes(heap.heapCapacity)} | Extra memory:{" "}
-          {formatBytes(heap.extraMemorySize)} | Objects: {heap.objectCount}
+          {formatBytes(memory.arrayBuffers)}
         </Text>
       </Box>
     </Box>
   );
 }
 
-export function startStatsUI(stats: Stats, recon: Recon<TorrentEvents>) {
+export function startStatsUI(stats: Stats) {
   render(<App stats={stats} />);
 }

@@ -106,6 +106,7 @@ export class UDPTracker {
 
   private silent = 0;
   private urls: string[];
+  private failedTrackers = new Set<string>();
 
   constructor(
     private decodedTorrent: BencodeDict,
@@ -538,7 +539,8 @@ export class UDPTracker {
   public async announce() {
     // send requests to tracker at the same time
 
-    const connect = async (url: string, flag = false) => {
+    const connect = async (url: string) => {
+      if (this.failedTrackers.has(url)) return;
       let urlObj = new URL(url);
       let portStr = new URL(url).port;
       if (!portStr) return;
@@ -553,21 +555,23 @@ export class UDPTracker {
         });
 
         const trackerKey = `${host},${port}`;
+
         this.trackerStates.set(trackerKey, {
           kind: "CONNECTING",
         });
 
         this.sendConnectRequest(host, port, 0);
       } catch {
-        if (flag) console.log(`Tracker ${url} failed`);
+        this.failedTrackers.add(url);
       }
     };
 
     setInterval(
-      () => {
+      async () => {
+        
         console.log("😋 Sent UDP Tracker request");
-
-        Promise.allSettled(this.urls.map((url) => connect(url)));
+        await Promise.allSettled(this.urls.map((url) => connect(url)));
+        console.log(`😨 Failed UDP Tracker count: ${this.failedTrackers.size}`);
       },
       1 * 60 * 1000,
     );
@@ -576,6 +580,7 @@ export class UDPTracker {
     //   console.log(`Silent trackers: ${this.silent}`);
     // }, 10 * 1000);
 
-    Promise.allSettled(this.urls.map((url) => connect(url, true)));
+    await Promise.allSettled(this.urls.map((url) => connect(url)));
+    console.log(`😨 Failed UDP Tracker count: ${this.failedTrackers.size}`);
   }
 }

@@ -14,17 +14,16 @@ import type { TorrentEvents } from "../torrent";
 import { normalizeAddr } from "./normaliseAddr";
 import { RateMeter } from "../utils/RateMeter";
 
-const MAX_MESSAGE_LEN = 16 * 1024 + 9;
-const MAX_JUNK_BYTES = 5 * 1024 * 1024; // 10 MiB
+const MAX_JUNK_BYTES = 5 * 1024 * 1024;
 
 export class Peer {
   private remoteAddress;
   private port;
+  private junkBytes = 0;
 
   private buf: Buffer = Buffer.alloc(0);
   private availablePieces: Set<number> = new Set<number>();
   private disconnected = false;
-  private junkBytes = 0;
 
   private pendingRequests = new Map<string, PendingRequest>();
   private reqQueue: AsyncMessageQueue<Buffer> = new AsyncMessageQueue<Buffer>();
@@ -33,6 +32,7 @@ export class Peer {
 
   public readonly down = new RateMeter();
   public clientName = "Unknown";
+  private removeListener: (() => void)[] = [];
 
   constructor(
     private socket: Socket,
@@ -54,29 +54,35 @@ export class Peer {
   }
 
   private initReconHandlers() {
-    this.recon.once("DOWNLOAD_COMPLETE", () => {
-      console.log(
-        "😙 Download finish ,disconnect peer:",
-        this.remoteAddress,
-        this.port,
-      );
+    this.removeListener.push(
+      this.recon.once("DOWNLOAD_COMPLETE", () => {
+        // console.log(
+        //   "😙 Download finish ,disconnect peer:",
+        //   this.remoteAddress,
+        //   this.port,
+        // );
 
-      this.disconnect();
-    });
+        this.disconnect();
+      }),
+    );
 
-    this.recon.listen("PIECE:COMPLETED", (pieceIdx) => this.HAVE_Req(pieceIdx));
+    this.removeListener.push(
+      this.recon.listen("PIECE:COMPLETED", (pieceIdx) =>
+        this.HAVE_Req(pieceIdx),
+      ),
+    );
   }
 
   private disconnect = () => {
     if (this.disconnected) return;
     this.disconnected = true;
+    for (const off of this.removeListener) off();
     // console.log(`🌩️ Disconnected from peer ${this.remoteAddress}:${this.port}`);
 
     this.pendingRequests.clear();
     this.reqQueue.close();
     this.incomingQueue.close();
     this.socket.destroy();
-    this.socket.removeAllListeners();
 
     this.recon.announce("PEER:DISCONNECT", this);
   };
@@ -160,16 +166,9 @@ export class Peer {
         const pieceKey = `${event.piece.pieceIdx},${event.piece.offset}`;
         const pendingReq = this.pendingRequests.get(pieceKey);
 
-        if (!pendingReq) {
-          this.junkBytes += event.piece.block.length;
-          if (this.junkBytes > MAX_JUNK_BYTES) this.ban("wasted > 10MB");
-          return;
-        }
+        if (!pendingReq) return;
 
-        if (
-          pendingReq &&
-          pendingReq.request.length !== event.piece.block.length
-        ) {
+        if (pendingReq.request.length !== event.piece.block.length) {
           throw new Error("Received piece with incorrect length");
         }
 
@@ -254,7 +253,8 @@ export class Peer {
   private async startIncomingLoop() {
     while (true) {
       const message = await this.incomingQueue.pop();
-      if (message === undefined) break;
+      if (this.incomingQueue.length < 32) this.socket.resume();
+      if (message === undefined || this.disconnected) break;
 
       try {
         await this.processEvent(decodeIncomingPeerMessage(message));
@@ -282,8 +282,6 @@ export class Peer {
       if (this.buf.length < 4) break;
 
       const messageLen = this.buf.readUInt32BE(0);
-      if (messageLen > MAX_MESSAGE_LEN)
-        return this.ban(`oversize msg ${messageLen}`);
 
       // Need the complete message
       if (this.buf.length < 4 + messageLen) break;
@@ -302,6 +300,8 @@ export class Peer {
       this.buf = this.buf.subarray(4 + messageLen);
       this.incomingQueue.push(message);
     }
+
+    if (this.incomingQueue.length > 128) this.socket.pause();
   };
 
   private UNCHOKE_Req() {
@@ -354,18 +354,17 @@ export class Peer {
   }
 
   public ban(reason: string) {
-    console.log(`🔨 banning ${this.remoteAddress}: ${reason}`);
+    if (this.disconnected) return;
+    console.log(`🔨 banning ${this.clientName}: ${reason}`);
 
     this.recon.announce("PEER:BAN", this);
     this.disconnect();
   }
-
   public addJunk(bytes: number) {
     this.junkBytes += bytes;
     if (this.junkBytes > MAX_JUNK_BYTES)
       this.ban(`wasted ${this.junkBytes} bytes`);
   }
-
   /************************************************************************ */
   // API SECTION
   public get ip() {

@@ -8,8 +8,8 @@ import type { SchedulerEvent } from "../types/schedulerTypes";
 import { BLOCK_SIZE } from "../client";
 
 export class Scheduler {
-  private readonly MAX_IN_FLIGHT: number;
-  // private readonly MAX_ACTIVE_PIECES: number;
+  private readonly MAX_IN_FLIGHT: number = 150;
+  private MAX_ACTIVE_PIECES: number;
   private eventQueue = new AsyncMessageQueue<SchedulerEvent>();
 
   private active = new Map<number, number[]>();
@@ -17,6 +17,8 @@ export class Scheduler {
   private inflight = new Map<number, Peer>();
   private byPeer = new Map<Peer, Set<number>>();
   private verifiedPieces: ReadonlySet<number>;
+  private offHandlers: (() => void)[] = [];
+  private offDone?: () => void;
 
   constructor(
     private pieceManager: PieceManager,
@@ -29,12 +31,10 @@ export class Scheduler {
     this.eventLoop();
 
     this.sweepTimer = setInterval(() => this.sweep(), 5000);
-    // this.MAX_ACTIVE_PIECES = Math.max(
-    //   8,
-    //   Math.floor((128 * 1024 * 1024) / (blocksPerPiece * BLOCK_SIZE)),
-    // );
 
-    this.MAX_IN_FLIGHT = Math.max(50, this.blocksPerPiece / 2);
+    this.MAX_ACTIVE_PIECES = Math.ceil(
+      (125 * 1024 * 1024) / (this.blocksPerPiece * BLOCK_SIZE),
+    );
   }
 
   // ---------- keys ----------
@@ -44,20 +44,15 @@ export class Scheduler {
 
   // ---------- wiring ----------
   private initReconHandlers() {
-    const handlers: (() => void)[] = [];
-
-    handlers.push(
+    this.offHandlers.push(
       this.recon.listen("PEER:CONNECT", (peer) =>
         this.dispatch({ type: "CONNECTED", peer }),
       ),
       this.recon.listen("PEER:DISCONNECT", (peer) =>
         this.dispatch({ type: "DISCONNECT", peer }),
       ),
-      this.recon.listen(
-        "PEER:CHOKE",
-        (
-          peer, // 👈 add this event if missing
-        ) => this.dispatch({ type: "CHOKE", peer }),
+      this.recon.listen("PEER:CHOKE", (peer) =>
+        this.dispatch({ type: "CHOKE", peer }),
       ),
       this.recon.listen("PEER:UNCHOKE", (peer) =>
         this.dispatch({ type: "UNCHOKE", peer }),
@@ -83,17 +78,19 @@ export class Scheduler {
       }),
     );
 
-    this.recon.once("DOWNLOAD_COMPLETE", () => {
-      console.log("🚜 Disconnect Scheduler");
-
-      this.inflight.clear();
-      this.byPeer.clear();
-      this.active.clear();
-      this.eventQueue.close();
-
-      for (const off of handlers) off();
-    });
+    this.offDone = this.recon.once("DOWNLOAD_COMPLETE", this.dispose);
   }
+
+  public dispose = () => {
+    clearInterval(this.sweepTimer); 
+    this.eventQueue.close();
+    this.inflight.clear();
+    this.byPeer.clear();
+    this.active.clear();
+    this.started.clear(); 
+    for (const off of this.offHandlers) off();
+    this.offDone?.();
+  };
 
   private async eventLoop() {
     while (true) {
@@ -153,7 +150,7 @@ export class Scheduler {
   }
 
   private fillPeer(peer: Peer) {
-    if (peer.isPeerChoking) return;
+    if (!this.peers.has(peer) || peer.isPeerChoking) return;
     while (peer.inFlight < this.MAX_IN_FLIGHT) {
       const req = this.nextFor(peer);
       if (!req) return;
@@ -170,7 +167,7 @@ export class Scheduler {
   }
 
   private nextFor(peer: Peer): BlockRequest | null {
-    // if (this.started.size >= this.MAX_ACTIVE_PIECES) return null;
+    if (this.started.size >= this.MAX_ACTIVE_PIECES) return null;
 
     for (const [idx, offs] of this.active) {
       if (!peer.pieces.has(idx)) continue;
@@ -182,6 +179,8 @@ export class Scheduler {
         length: this.pieceManager.validator.getBlockLength(idx, offset),
       };
     }
+
+    if (this.started.size >= this.MAX_ACTIVE_PIECES) return null;
 
     // 2) start a brand new piece this peer has
     for (const idx of peer.pieces) {
@@ -225,7 +224,7 @@ export class Scheduler {
 
   private sweep() {
     for (const peer of this.peers) {
-      for (const req of peer.takeStale(20_000)) {
+      for (const req of peer.takeStale(10_000)) {
         const key = this.key(req.pieceIdx, req.offset);
         if (this.inflight.get(key) === peer) this.inflight.delete(key);
         this.byPeer.get(peer)?.delete(key);

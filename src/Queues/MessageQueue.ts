@@ -30,9 +30,14 @@ export class AsyncMessageQueue<T> {
   close(): void {
     if (this.closed) return;
     this.closed = true;
+    this.items.clear()
     while (!this.consumers.isEmpty()) {
       const resolve = this.consumers.pop()!;
       resolve(undefined);
     }
+  }
+
+  public get length(): number {
+    return this.items.size();
   }
 }

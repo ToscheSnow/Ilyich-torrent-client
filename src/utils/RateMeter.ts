@@ -6,7 +6,7 @@ export class RateMeter {
   private ema = 0;
   private primed = false;
 
-  constructor(private tauMs = 5000) {} // time constant: "memory" of ~5s
+  constructor(private tauMs = 3000) {} // time constant: "memory" of ~5s
 
   add(n: number) {
     this.total += n;

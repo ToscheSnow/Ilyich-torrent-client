@@ -26,6 +26,7 @@ export type TrackerAnnounceArgs = {
 export class HTTPTracker {
   private readonly urls: string[];
   private announceTimer?: ReturnType<typeof setInterval>;
+  private failedTrackers: Set<string> = new Set<string>();
 
   constructor(
     decodedTorrent: BencodeDict,
@@ -98,25 +99,25 @@ export class HTTPTracker {
   public async announce() {
     // send requests to tracker at the same time
     const fetchSingleReq = async (url: string) => {
+      if (this.failedTrackers.has(url)) return;
       try {
         const response = await this.announceTracker(url);
         this.onResponse(response.peers);
       } catch (err) {
+        this.failedTrackers.add(url);
         const message = err instanceof Error ? err.message : String(err);
         // console.error(`Tracker failed :${url} - ${message}`);
       }
     };
 
-    const announceAll = () =>
-      Promise.allSettled(this.urls.map((url) => fetchSingleReq(url)));
-
-    this.announceTimer = setInterval(() => {
+    this.announceTimer = setInterval(async () => {
       console.log("🎯 Sent HTTP Tracker Req");
-
-      announceAll();
+      await Promise.allSettled(this.urls.map((url) => fetchSingleReq(url)));
+      console.log(`😨 Failed HTTP Tracker count: ${this.failedTrackers.size}`);
     }, 120 * 1000);
 
-    announceAll();
+    await Promise.allSettled(this.urls.map((url) => fetchSingleReq(url)));
+    console.log(`😨 Failed HTTP Tracker count: ${this.failedTrackers.size}`);
   }
 
   private async announceTracker(trackerUrl: string): Promise<TrackerResponse> {

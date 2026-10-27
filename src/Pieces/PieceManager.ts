@@ -18,8 +18,12 @@ export class PieceManager {
   private numPieces: number;
   private blocksPerPiece = 0;
   // pieceIdx -> (peer -> bytes they gave us for that piece)
-  private contributors = new Map<number, Map<Peer, number>>();
   public validator: PieceValidator;
+  private senders = new Map<number, Map<number, Peer>>();
+  private suspects = new Map<
+    number,
+    Map<number, { peer: Peer; hash: string }[]>
+  >();
 
   public constructor(
     { pieceHashes, pieceLength, ...meta }: TorrentMetadata,
@@ -49,10 +53,14 @@ export class PieceManager {
     this.completeDownloadHandler();
   }
 
-  private recordBlock(pieceIdx: number, peer: Peer, bytes: number) {
-    let m = this.contributors.get(pieceIdx);
-    if (!m) this.contributors.set(pieceIdx, (m = new Map()));
-    m.set(peer, (m.get(peer) ?? 0) + bytes);
+  private fingerprint(buf: Buffer) {
+    return new Bun.CryptoHasher("sha1").update(buf).digest("hex");
+  }
+
+  private recordBlock(pieceIdx: number, offset: number, peer: Peer) {
+    let m = this.senders.get(pieceIdx);
+    if (!m) this.senders.set(pieceIdx, (m = new Map()));
+    m.set(offset, peer);
   }
 
   public completeDownloadHandler() {
@@ -70,19 +78,33 @@ export class PieceManager {
   private failStreak = 0;
 
   private blamePeers(pieceIdx: number) {
-    const m = this.contributors.get(pieceIdx);
-    this.contributors.delete(pieceIdx);
-    if (!m) return;
+    const sent = this.senders.get(pieceIdx);
+    this.senders.delete(pieceIdx);
+    if (!sent) return;
 
-    // many fails in a row from many peers = probably OUR bug, don't ban anyone
+    // many fails in a row = probably OUR bug, don't ban anyone
     if (++this.failStreak > 20) return;
 
-    if (m.size === 1) {
-      for (const peer of m.keys()) {
+    const unique = new Set(sent.values());
+
+    // fast path: one sender means it's definitely them
+    if (unique.size === 1) {
+      for (const peer of unique)
         peer.ban(`sole sender of corrupt piece ${pieceIdx}`);
-      }
-    } else {
-      for (const [peer, bytes] of m) peer.addJunk(bytes);
+      this.suspects.delete(pieceIdx);
+      return;
+    }
+
+    // can't tell yet: remember what everyone sent, judge on the next good copy
+    let s = this.suspects.get(pieceIdx);
+    if (!s) this.suspects.set(pieceIdx, (s = new Map()));
+
+    for (const [offset, peer] of sent) {
+      const block = this.blocks.get(this.key(pieceIdx, offset));
+      if (!block) continue; // must run BEFORE clearPieceBlocks
+      let list = s.get(offset);
+      if (!list) s.set(offset, (list = []));
+      list.push({ peer, hash: this.fingerprint(block) });
     }
   }
 
@@ -99,8 +121,8 @@ export class PieceManager {
     const blockKey = this.key(pieceIdx, offset);
 
     if (this.blocks.has(blockKey)) return;
-    this.blocks.set(blockKey, block);
-    this.recordBlock(pieceIdx, peer, block.length);
+    this.blocks.set(blockKey, Buffer.from(block));
+    this.recordBlock(pieceIdx, offset, peer);
 
     // const storedForPiece =
     //   this.getBlockCount(pieceIdx) - this.getNeededBlocks(pieceIdx).length;
@@ -128,7 +150,7 @@ export class PieceManager {
         return;
       }
       this.failStreak = 0;
-
+      this.settleSuspects(pieceIdx, assembled);
       // console.log(
       //   // `🔐 PIECE ${pieceIdx} is valid hash valid`,
       //   Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20)),
@@ -136,7 +158,7 @@ export class PieceManager {
       await this.storageManager.writePiece(pieceIdx, assembled);
 
       this.verifiedPieces.add(pieceIdx);
-      this.contributors.delete(pieceIdx);
+      this.senders.delete(pieceIdx);
 
       this.recon.announce("PIECE:COMPLETED", pieceIdx, assembled.length);
 
@@ -149,6 +171,23 @@ export class PieceManager {
       // console.log("Block didnt match hash");
     }
   };
+
+  private settleSuspects(pieceIdx: number, good: Buffer) {
+    const s = this.suspects.get(pieceIdx);
+    this.suspects.delete(pieceIdx);
+    if (!s) return;
+
+    for (const [offset, entries] of s) {
+      const goodHash = this.fingerprint(
+        good.subarray(offset, offset + BLOCK_SIZE),
+      );
+      for (const { peer, hash } of entries) {
+        if (hash !== goodHash) {
+          peer.ban(`sent corrupt block ${pieceIdx}@${offset}`);
+        }
+      }
+    }
+  }
 
   private isCompletePiece(pieceIdx: number): boolean {
     const numBlocks = this.validator.getBlockCount(pieceIdx);
@@ -277,14 +316,29 @@ export class PieceManager {
     return { verifiedPieces: this.verifiedPieces, totalPieces: this.numPieces };
   };
 
-  getBlock = async ({
-    pieceIdx,
-    offset,
-    length,
-  }: BlockRequest): Promise<Buffer | undefined> => {
+  private readCache = new Map<number, Promise<Buffer>>();
+
+  getBlock = async ({ pieceIdx, offset, length }: BlockRequest) => {
     if (!this.verifiedPieces.has(pieceIdx)) return undefined;
 
-    return this.storageManager.readBlock(pieceIdx, length, offset);
+    let p = this.readCache.get(pieceIdx);
+    if (p) {
+      this.readCache.delete(pieceIdx); // refresh LRU order
+    } else {
+      p = this.storageManager.readBlock(
+        pieceIdx,
+        this.validator.getPieceLength(pieceIdx),
+      );
+      p.catch(() => this.readCache.delete(pieceIdx)); // never cache failures
+    }
+    this.readCache.set(pieceIdx, p);
+
+    if (this.readCache.size > 8) {
+      this.readCache.delete(this.readCache.keys().next().value!);
+    }
+
+    const piece = await p;
+    return piece.subarray(offset, offset + length);
   };
 
   public get pendingBlockCount(): number {
@@ -315,5 +369,12 @@ export class PieceManager {
 
   public get pieceCount(): number {
     return this.numPieces;
+  }
+
+  public get partialPieceCount() {
+    const seen = new Set<number>();
+    for (const key of this.blocks.keys())
+      seen.add(Math.floor(key / this.blocksPerPiece));
+    return seen.size;
   }
 }

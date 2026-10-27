@@ -148,7 +148,7 @@ export class Torrent {
 
     this.peerManager.startListening(listenPort);
 
-    startStatsUI(this.stats, this.recon);
+    startStatsUI(this.stats);
 
     this.HTTPTracker.announce();
     this.udpTracker.announce();

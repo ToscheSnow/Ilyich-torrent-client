@@ -80,7 +80,7 @@ export class Stats {
     this.lastSpeedCheckBytes = this.bytesDownloadedThisSession;
     // 250ms ticks, alpha 0.05 is roughly a 5s smoothing window 🌊
     this.emaSpeed =
-      this.emaSpeed === 0 ? inst : 0.33 * inst + 0.67 * this.emaSpeed;
+      this.emaSpeed === 0 ? inst : 0.5 * inst + 0.5 * this.emaSpeed;
   }
 
   public get speed(): number {
