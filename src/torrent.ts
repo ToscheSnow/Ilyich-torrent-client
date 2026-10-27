@@ -131,6 +131,8 @@ export class Torrent {
 
     this.recon.listen("DOWNLOAD_COMPLETE", () => {
       // small delay so the stats UI can draw its final frame
+      console.log(`Finished downloading at ${new Date().toLocaleTimeString()}`);
+
       setTimeout(() => process.exit(0), 500);
     });
 

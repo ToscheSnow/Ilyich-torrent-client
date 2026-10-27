@@ -82,12 +82,12 @@ export class Scheduler {
   }
 
   public dispose = () => {
-    clearInterval(this.sweepTimer); 
+    clearInterval(this.sweepTimer);
     this.eventQueue.close();
     this.inflight.clear();
     this.byPeer.clear();
     this.active.clear();
-    this.started.clear(); 
+    this.started.clear();
     for (const off of this.offHandlers) off();
     this.offDone?.();
   };
@@ -167,8 +167,6 @@ export class Scheduler {
   }
 
   private nextFor(peer: Peer): BlockRequest | null {
-    if (this.started.size >= this.MAX_ACTIVE_PIECES) return null;
-
     for (const [idx, offs] of this.active) {
       if (!peer.pieces.has(idx)) continue;
       const offset = offs.pop()!;
@@ -185,10 +183,10 @@ export class Scheduler {
     // 2) start a brand new piece this peer has
     for (const idx of peer.pieces) {
       if (this.started.has(idx) || this.verifiedPieces.has(idx)) continue;
-      this.started.add(idx);
-
       const offs = this.pieceManager.allOffsets(idx);
       if (offs.length === 0) continue;
+
+      this.started.add(idx);
       this.active.set(idx, offs);
       return this.nextFor(peer);
     }
