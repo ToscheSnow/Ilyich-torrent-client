@@ -8,6 +8,7 @@ import {
   parsePeerAddress,
 } from "../fileParsing/parsePeerAddress";
 import { httpTrackerQuery } from "./trackerURL";
+import type { TransferStats } from "../utils/Stats";
 
 export type TrackerResponse = {
   peers: PeerAddress[];
@@ -18,9 +19,6 @@ export type TrackerAnnounceArgs = {
   infoHash: Buffer;
   peerId: Buffer;
   port: number;
-  uploaded: number;
-  downloaded: number;
-  left: number;
 };
 
 export class HTTPTracker {
@@ -31,6 +29,7 @@ export class HTTPTracker {
   constructor(
     decodedTorrent: BencodeDict,
     private args: TrackerAnnounceArgs,
+    private getTransferStats: () => TransferStats,
     private onResponse: (peersAddresses: PeerAddress[]) => void,
     private recon: Recon<TorrentEvents>,
   ) {
@@ -42,7 +41,6 @@ export class HTTPTracker {
 
     this.recon.listen("DOWNLOAD_COMPLETE", () => {
       console.log("📦 Disconnect HTTP TRACKER");
-
       this.disconnect();
     });
   }
@@ -121,14 +119,18 @@ export class HTTPTracker {
   }
 
   private async announceTracker(trackerUrl: string): Promise<TrackerResponse> {
-    const url = httpTrackerQuery({
-      urlPath: trackerUrl,
-      infoHash: this.args.infoHash,
-      clientPort: this.args.port,
-      uploaded: this.args.uploaded,
-      totalBytes: this.args.left,
-      downloaded: this.args.downloaded,
-    });
+    const { downloaded, uploaded, left } = this.getTransferStats();
+    const url = httpTrackerQuery(
+      {
+        urlPath: trackerUrl,
+        infoHash: this.args.infoHash,
+        clientPort: this.args.port,
+        uploaded,
+        totalBytes: left,
+        downloaded,
+      },
+      left === 0 ? "completed" : undefined,
+    );
 
     const response = await fetch(url);
 

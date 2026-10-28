@@ -1,6 +1,6 @@
 export type TorrentMetadata = SingleFileInfo | MultiFileInfo;
 
-export interface BaseInfo {
+interface BaseInfo {
   infoHash: Uint8Array;
   name: string;
   pieceLength: number;

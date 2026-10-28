@@ -10,7 +10,7 @@ import type { Peer } from "./peers/peer";
 
 import { CLIENT_ID_BYTES } from "./client";
 import { HTTPTracker, type TrackerAnnounceArgs } from "./trackers/HTTPTracker";
-import { Stats } from "./utils/StatsReporter";
+import { Stats } from "./utils/Stats";
 import { Scheduler } from "./Scheduler/scheduler";
 import type { BencodeDict } from "./types/parserTypes";
 import { getMeta } from "./fileParsing/meta";
@@ -18,6 +18,7 @@ import type { BlockRequest, Piece } from "./types/peerTypes";
 import { startStatsUI } from "./utils/stats-ui";
 import { UDPTracker } from "./trackers/udpTracker";
 import { Recon } from "./Emitter/Recon";
+import { formatElapsedTime } from "./utils/formatTime";
 
 export type TorrentEvents = {
   "PEER:CONNECT": [Peer];
@@ -58,15 +59,14 @@ export class Torrent {
     private readonly torrentFile: Buffer,
     private readonly downloadDir: string = path.join(homedir(), "Downloads"),
   ) {
+    // parse torrent file to extract info dict and metadata
     const decoder = new BencodeDecoder(this.torrentFile);
-
     const decodedTorrent = decoder.parse() as BencodeDict;
-
     this.meta = getMeta(decodedTorrent);
     this.infoHash = Buffer.from(this.meta.infoHash);
-
     this.totalBytes = this.getTotalBytes();
 
+    // initialise in order of dependencies
     this.storageManager = new StorageManager(this.meta, this.downloadDir);
 
     this.pieceManager = new PieceManager(
@@ -97,19 +97,16 @@ export class Torrent {
       this.recon,
     );
 
-    // this.udpTracker = new HTTPTracker(decodedTorrent);
     const args: TrackerAnnounceArgs = {
       infoHash: this.infoHash,
       peerId: this.peerId,
       port: 6881,
-      uploaded: this.stats.bytesUploaded,
-      downloaded: this.stats.downloadedBytes, // should be what you have
-      left: this.totalBytes - this.stats.downloadedBytes,
     };
 
     this.HTTPTracker = new HTTPTracker(
       decodedTorrent,
       args,
+      this.stats.transferStats,
       (peerAddresses) => {
         this.peerManager.addAddresses(peerAddresses);
       },
@@ -119,6 +116,7 @@ export class Torrent {
     this.udpTracker = new UDPTracker(
       decodedTorrent,
       args,
+      this.stats.transferStats,
       (peerAddresses) => {
         this.peerManager.addAddresses(peerAddresses);
       },
@@ -126,32 +124,40 @@ export class Torrent {
     );
   }
 
+  // this function starts the execution of download
   public async start(listenPort = 6881) {
+    const downloadStartTime = performance.now();
     console.log(`\nStarted torrent at ${new Date().toLocaleTimeString()}\n`);
 
     this.recon.listen("DOWNLOAD_COMPLETE", () => {
-      // small delay so the stats UI can draw its final frame
+      const downloadFinishTime = performance.now();
       console.log(`Finished downloading at ${new Date().toLocaleTimeString()}`);
+      console.log(
+        `Time taken to finish: ${formatElapsedTime(downloadFinishTime - downloadStartTime)}`,
+      );
 
+      // small delay so the stats UI can draw its final frame
       setTimeout(() => process.exit(0), 500);
     });
 
+    // open file handles and map/allocate torrent files to disk
     await this.storageManager.initFileHandles();
-
     console.log("\nStorage initialised");
 
+    // check for existing pieces on disk by comparing hashes from file offsets
     console.log("Checking disk for existing pieces");
-
     await this.pieceManager.verifyAvailablePieces();
-
     console.log("Available Pieces verified");
 
+    //check for complete pieces already on disk
     this.pieceManager.completeDownloadHandler();
 
+    //allow incoming peer connections (can also be skipped)
     this.peerManager.startListening(listenPort);
 
     startStatsUI(this.stats);
 
+    // start tracker requests (these take place periodically)
     this.HTTPTracker.announce();
     this.udpTracker.announce();
   }
@@ -160,7 +166,6 @@ export class Torrent {
     if ("length" in this.meta) {
       return this.meta.length;
     }
-
     return this.meta.files.reduce((total, file) => total + file.length, 0);
   }
 }

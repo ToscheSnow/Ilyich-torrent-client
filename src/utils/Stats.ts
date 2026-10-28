@@ -2,6 +2,12 @@ import type { Recon, unsubscribeFn } from "../Emitter/Recon";
 import type { Peer } from "../peers/peer";
 import type { TorrentEvents } from "../torrent";
 
+export type TransferStats = {
+  downloaded: number;
+  uploaded: number;
+  left: number;
+};
+
 export class Stats {
   private peers = new Set<Peer>();
   private piecesCompleted = 0;
@@ -9,7 +15,7 @@ export class Stats {
   private totalBytesHave = 0;
   private verifiedBytes = 0;
   private lastSpeedCheckBytes = 0;
-  private emaSpeed = 0; //
+  private emaSpeed = 0;
   private uploadedBytes = 0;
   private chokedPeers = new Set<Peer>();
   private seeders = new Set<Peer>();
@@ -129,4 +135,12 @@ export class Stats {
   public get bytesInProgress() {
     return this.downloadedBytes - this.verifiedBytes;
   }
+
+  public transferStats = (): TransferStats => {
+    return {
+      downloaded: this.bytesDownloadedThisSession,
+      uploaded: this.uploadedBytes,
+      left: Math.max(0, this.totalBytes - this.totalBytes),
+    };
+  };
 }

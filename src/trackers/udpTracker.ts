@@ -8,6 +8,8 @@ import dns from "node:dns/promises";
 import type { PeerAddress } from "../peers/PeerManager";
 import type { Recon } from "../Emitter/Recon";
 import type { TorrentEvents } from "../torrent";
+import type { TrackerEvent } from "../types/trackerTypes";
+import type { TransferStats } from "../utils/Stats";
 
 class SilentParseError extends Error {
   constructor(message: string) {
@@ -19,10 +21,6 @@ class SilentParseError extends Error {
 type TrackerRequest = {
   host: string;
   port: number;
-
-  // action: 0 | 1 | 2 | 3;
-  // delay: number;
-  // retriesLeft: number;
 };
 
 type TrackerState = DisconnectedState | ConnectedState | ConnectingState;
@@ -49,68 +47,31 @@ interface ConnectedState {
   expiresAt: number;
 }
 
-type TrackerEvent =
-  | {
-      type: "CONNECT_RESPONSE";
-      host: string;
-      port: number;
-      transactionId: number;
-      connectionId: bigint;
-    }
-  | {
-      type: "ANNOUNCE_RESPONSE";
-      host: string;
-      port: number;
-      transactionId: number;
-      interval: number;
-      seeders: number;
-      leechers: number;
-      peers: Buffer;
-    }
-  | {
-      type: "REQUEST_TIMEOUT";
-      action: "CONNECT" | "ANNOUNCE";
-      transactionId: number;
-      buf: Buffer;
-      host: string;
-      port: number;
-      triesDone: number;
-      connectionId?: bigint;
-    }
-  | {
-      type: "DISCONNECT";
-      host: string;
-      port: number;
-    }
-  | {
-      type: "ERROR";
-      host: string;
-      port: number;
-      transactionId: number;
-      error: string;
-    };
-
 export class UDPTracker {
+  //session key allows the server to identify us if our IP changes middownload (32 bit long)
   private SESSION_KEY = randomBytes(4);
   private pendingRequests = new Map<number, TrackerRequest>();
 
+  //UDP socket for IPv4
   private socket = dgram.createSocket("udp4");
+
+  // maps trackers and states trackerKey = {ip},{port}
   private trackerStates = new Map<string, TrackerState>();
   private retries = new Map<number, ReturnType<typeof setTimeout>>();
 
-  private incomingMessageQueue: AsyncMessageQueue<TrackerEvent> =
-    new AsyncMessageQueue<TrackerEvent>();
+  private incomingMessageQueue = new AsyncMessageQueue<TrackerEvent>();
+  private outgoingMessageQueue = new AsyncMessageQueue<Datagram>();
 
-  private outgoingMessageQueue: AsyncMessageQueue<Datagram> =
-    new AsyncMessageQueue<Datagram>();
-
-  private silent = 0;
   private urls: string[];
   private failedTrackers = new Set<string>();
+
+  private hasAnnouncedStart = false;
+  private hasAnnouncedCompletion = false;
 
   constructor(
     private decodedTorrent: BencodeDict,
     private args: TrackerAnnounceArgs,
+    private getTransferStats: () => TransferStats,
     private onResponse: (peersAddresses: PeerAddress[]) => void,
     private recon: Recon<TorrentEvents>,
   ) {
@@ -134,7 +95,6 @@ export class UDPTracker {
 
     this.recon.listen("DOWNLOAD_COMPLETE", () => {
       console.log("📦 Disconnect UDP TRACKER");
-
       this.disconnect();
     });
 
@@ -143,15 +103,16 @@ export class UDPTracker {
   }
 
   private disconnect() {
+    // stop processing events and socket buffers
     this.incomingMessageQueue.close();
     this.outgoingMessageQueue.close();
 
+    // turn off retries
     for (const [_, timer] of this.retries) {
       timer.close();
     }
 
     this.retries.clear();
-
     this.pendingRequests.clear();
     this.trackerStates.clear();
 
@@ -161,7 +122,6 @@ export class UDPTracker {
   private async startIncomingLoop() {
     while (true) {
       const event = await this.incomingMessageQueue.pop();
-
       if (event === undefined) break;
 
       this.processEvent(event);
@@ -171,11 +131,24 @@ export class UDPTracker {
   private async startReqLoop() {
     while (true) {
       const req = await this.outgoingMessageQueue.pop();
-
       if (req === undefined) break;
 
       this.socket.send(req.message, req.port, req.host);
     }
+  }
+
+  private getAnnounceEvent({ left }: TransferStats): 0 | 1 | 2 {
+    if (!this.hasAnnouncedStart) {
+      this.hasAnnouncedStart = true;
+      return 2; // started
+    }
+
+    if (left === 0 && !this.hasAnnouncedCompletion) {
+      this.hasAnnouncedCompletion = true;
+      return 1; // completed
+    }
+
+    return 0; // none
   }
 
   private parseEventFromMessage(
@@ -183,8 +156,15 @@ export class UDPTracker {
     host: string,
     port: number,
   ): TrackerEvent {
-    const messageId = message.readUint32BE(0);
+    /*
+    MESSAGE ID (4 Byte) : RESPONSE TYPE
+    0                   : Connect response
+    1                   : Announce response
+    2                   : Scrape response (Not implemented and not useful)
+    3                   : Error response
+    */
 
+    const messageId = message.readUint32BE(0);
     switch (messageId) {
       case 0:
         if (message.length < 16) {
@@ -238,16 +218,17 @@ export class UDPTracker {
       case "CONNECT_RESPONSE": {
         if (!this.pendingRequests.has(event.transactionId)) return;
 
+        // delete pending connect request and remove retry for connect request
         this.pendingRequests.delete(event.transactionId);
-
         this.retries.get(event.transactionId)?.close();
         this.retries.delete(event.transactionId);
 
         const trackerKey = `${event.host},${event.port}`;
         const state = this.trackerStates.get(trackerKey);
-
+        // after a connect request is sent state changes to connecting
         if (!state || state.kind !== "CONNECTING") return;
 
+        //successful connection store connectionID
         const newState: ConnectedState = {
           kind: "CONNECTED",
           connectionId: event.connectionId,
@@ -255,7 +236,7 @@ export class UDPTracker {
         };
 
         this.trackerStates.set(trackerKey, newState);
-        // start announce request
+        // start fresh announce request
         this.sendAnnounceRequest(event.host, event.port, event.connectionId, 0);
         return;
       }
@@ -263,40 +244,32 @@ export class UDPTracker {
       case "ANNOUNCE_RESPONSE": {
         if (!this.pendingRequests.has(event.transactionId)) return;
 
+        // delete pending announce request and remove retry for announce request
         this.pendingRequests.delete(event.transactionId);
-
         this.retries.get(event.transactionId)?.close();
         this.retries.delete(event.transactionId);
 
         const trackerKey = `${event.host},${event.port}`;
         const state = this.trackerStates.get(trackerKey);
 
+        // announce request can only be sent if tracker is connected
         if (!state || state.kind !== "CONNECTED") return;
 
-        // console.log(
-        //   "UDP SEEDERS:",
-        //   event.seeders,
-        //   "UDP leechers:",
-        //   event.leechers,
-        // );
-
+        //collect peers and addAddresses
         const peers = parsePeerAddress(event.peers);
-
         this.onResponse(peers);
-
         return;
       }
 
       case "REQUEST_TIMEOUT": {
         if (!this.pendingRequests.has(event.transactionId)) return;
-
         const { host, port } = event;
+
         if (event.action === "CONNECT") {
           this.pendingRequests.delete(event.transactionId);
           this.retries.delete(event.transactionId);
 
           // console.log(`${event.triesDone} try for connect request`);
-
           this.sendConnectRequest(host, port, event.triesDone);
         }
 
@@ -310,6 +283,7 @@ export class UDPTracker {
 
           if (!state || state.kind !== "CONNECTED") return;
 
+          // if past connection window disconnect and try connecting again
           if (state.expiresAt <= Date.now()) {
             this.incomingMessageQueue.push({
               type: "DISCONNECT",
@@ -318,15 +292,13 @@ export class UDPTracker {
             });
 
             this.sendConnectRequest(host, port, 0);
-
             return;
           }
-          const connectionId = state.connectionId;
 
+          // retry announce request
+          const connectionId = state.connectionId;
           this.retries.delete(event.transactionId);
           this.pendingRequests.delete(event.transactionId);
-
-          // console.log(`${event.triesDone} try for announce request`);
 
           this.sendAnnounceRequest(
             event.host,
@@ -340,7 +312,6 @@ export class UDPTracker {
       }
 
       case "DISCONNECT": {
-        this.silent++;
         const trackerKey = `${event.host},${event.port}`;
 
         this.trackerStates.set(trackerKey, {
@@ -360,6 +331,7 @@ export class UDPTracker {
         console.log(`Received error from a tracker: ${error}`);
         return;
       }
+
       default:
         throw new Error("Invalid call to udp tracker event processor");
     }
@@ -373,14 +345,18 @@ export class UDPTracker {
   ) {
     const DELAY = 2000;
 
-    if (triesDone >= 4) {
+    if (triesDone >= 5) {
       this.incomingMessageQueue.push({ type: "DISCONNECT", host, port });
       return;
     }
 
+    const transferStats = this.getTransferStats();
+
     const [announceTransactionId, buf] = this.announceRequestBuffer(
       connectionId,
       this.args,
+      transferStats,
+      this.getAnnounceEvent(transferStats),
     );
 
     this.pendingRequests.set(announceTransactionId, { port, host });
@@ -398,6 +374,7 @@ export class UDPTracker {
             transactionId: announceTransactionId,
           });
         },
+        // add jitter to exponential delay to avoid multiple retries simultaneously
         DELAY * (1 << triesDone) * (0.75 + Math.random() * 0.5),
       ),
     );
@@ -430,9 +407,7 @@ export class UDPTracker {
             transactionId: connectTransactionId,
           });
         },
-        DELAY *
-          (1 << triesDone) *
-          (Math.floor(Math.random() * (1.25 - 0.75 + 1)) + 0.75),
+        DELAY * (1 << triesDone) * (0.75 + Math.random() * 0.5),
       ),
     );
 
@@ -440,13 +415,23 @@ export class UDPTracker {
   }
 
   private connectRequestBuffer(): [number, Buffer] {
-    const buf = Buffer.alloc(16);
-    buf.writeBigUInt64BE(0x41727101980n, 0);
+    /*
+     * Constructs a 16-byte UDP tracker connect request.
+     *
+     * Layout:
+     *   0-7:   64-bit protocol ID (magic constant)
+     *   8-11:  32-bit action (0 = connect)
+     *   12-15: 32-bit transaction ID (random)
+     *
+     * Returns the transaction ID as a number alongside the request buffer.
+     */
 
+    const buf = Buffer.alloc(16);
+
+    buf.writeBigUInt64BE(0x41727101980n, 0);
     buf.writeUint32BE(0, 8);
 
     const transactionID = randomBytes(4);
-
     buf.set(transactionID, 12);
 
     return [transactionID.readUint32BE(0), buf];
@@ -499,8 +484,30 @@ export class UDPTracker {
 
   private announceRequestBuffer(
     connectionID: bigint,
-    { infoHash, peerId, port, downloaded, uploaded, left }: TrackerAnnounceArgs,
+    { infoHash, peerId, port }: TrackerAnnounceArgs,
+    { downloaded, uploaded, left }: TransferStats,
+    event: 0 | 1 | 2 | 3,
   ): [number, Buffer] {
+    /*
+     * Constructs a 98-byte UDP tracker announce request.
+     *
+     * Layout:
+     *   Offset  Size      Field           Description
+     *   0       8 bytes   connection_id   Connection ID from the tracker handshake
+     *   8       4 bytes   action          1 (announce)
+     *   12      4 bytes   transaction_id  Random identifier for matching the response
+     *   16      20 bytes  info_hash       SHA-1 hash of the torrent's info dictionary
+     *   36      20 bytes  peer_id         Unique identifier of this peer
+     *   56      8 bytes   downloaded      Total bytes downloaded
+     *   64      8 bytes   left            Bytes remaining to download
+     *   72      8 bytes   uploaded        Total bytes uploaded
+     *   80      4 bytes   event           2 (started)
+     *   84      4 bytes   IP address      0 (default; tracker determines the IP)
+     *   88      4 bytes   key             Session key used to identify this client
+     *   92      4 bytes   num_want        -1 (request default number of peers)
+     *   96      2 bytes   port            Port on which this peer listens
+     */
+
     const buf = Buffer.alloc(98);
 
     // if (connectionID.length !== 8)
@@ -526,7 +533,7 @@ export class UDPTracker {
     buf.writeBigUInt64BE(BigInt(left), 64);
     buf.writeBigUInt64BE(BigInt(uploaded), 72);
 
-    buf.writeUint32BE(2, 80);
+    buf.writeUint32BE(event, 80);
     buf.writeUint32BE(0, 84);
 
     buf.set(this.SESSION_KEY, 88);
@@ -537,8 +544,7 @@ export class UDPTracker {
   }
 
   public async announce() {
-    // send requests to tracker at the same time
-
+    // send concurrent tracker requests
     const connect = async (url: string) => {
       if (this.failedTrackers.has(url)) return;
       let urlObj = new URL(url);
@@ -546,7 +552,6 @@ export class UDPTracker {
       if (!portStr) return;
 
       const port = Number(portStr);
-
       try {
         if (port < 1 || port > 65535) return;
 
@@ -555,30 +560,25 @@ export class UDPTracker {
         });
 
         const trackerKey = `${host},${port}`;
-
         this.trackerStates.set(trackerKey, {
           kind: "CONNECTING",
         });
 
         this.sendConnectRequest(host, port, 0);
       } catch {
+        //add to failedTrackers to skip since most dns failure doesnt resolve
         this.failedTrackers.add(url);
       }
     };
 
     setInterval(
       async () => {
-        
         console.log("😋 Sent UDP Tracker request");
         await Promise.allSettled(this.urls.map((url) => connect(url)));
         console.log(`😨 Failed UDP Tracker count: ${this.failedTrackers.size}`);
       },
       1 * 60 * 1000,
     );
-
-    // setInterval(() => {
-    //   console.log(`Silent trackers: ${this.silent}`);
-    // }, 10 * 1000);
 
     await Promise.allSettled(this.urls.map((url) => connect(url)));
     console.log(`😨 Failed UDP Tracker count: ${this.failedTrackers.size}`);

@@ -17,8 +17,8 @@ export class PieceManager {
   private verifiedPieces: Set<number> = new Set<number>();
   private numPieces: number;
   private blocksPerPiece = 0;
-  // pieceIdx -> (peer -> bytes they gave us for that piece)
   public validator: PieceValidator;
+  // pieceIdx -> (peer -> bytes they gave us for that piece)
   private senders = new Map<number, Map<number, Peer>>();
   private suspects = new Map<
     number,
@@ -30,7 +30,6 @@ export class PieceManager {
     private storageManager: StorageManager,
     private recon: Recon<TorrentEvents>,
   ) {
-    // this.pieceLength = pieceLength;
     this.hashes = pieceHashes;
 
     if ("length" in meta) {
@@ -124,19 +123,10 @@ export class PieceManager {
     this.blocks.set(blockKey, Buffer.from(block));
     this.recordBlock(pieceIdx, offset, peer);
 
-    // const storedForPiece =
-    //   this.getBlockCount(pieceIdx) - this.getNeededBlocks(pieceIdx).length;
-
-    // console.log(
-    //   `📦 stored piece=${pieceIdx} offset=${offset} | ` +
-    //     `${storedForPiece}/${this.getBlockCount(pieceIdx)} blocks`,
-    // );
-
     this.recon.announce("BLOCK:RECEIVED", piece);
 
     if (this.isCompletePiece(pieceIdx)) {
       const assembled = this.assemblePiece(pieceIdx);
-      // console.log(`🧩 PIECE ${pieceIdx} COMPLETE`);
 
       if (
         !this.verifyPiece(
@@ -151,24 +141,16 @@ export class PieceManager {
       }
       this.failStreak = 0;
       this.settleSuspects(pieceIdx, assembled);
-      // console.log(
-      //   // `🔐 PIECE ${pieceIdx} is valid hash valid`,
-      //   Buffer.from(this.hashes.subarray(pieceIdx * 20, pieceIdx * 20 + 20)),
-      // );
       await this.storageManager.writePiece(pieceIdx, assembled);
 
       this.verifiedPieces.add(pieceIdx);
       this.senders.delete(pieceIdx);
 
-      this.recon.announce("PIECE:COMPLETED", pieceIdx, assembled.length);
-
-      // console.log(`Written piece ${pieceIdx} to disk`);
       this.clearPieceBlocks(pieceIdx);
+      this.recon.announce("PIECE:COMPLETED", pieceIdx, assembled.length);
 
       this.completeDownloadHandler();
       return;
-
-      // console.log("Block didnt match hash");
     }
   };
 
@@ -198,15 +180,8 @@ export class PieceManager {
       const key = this.key(pieceIdx, offset);
       // const key = `${pieceIdx},${offset}`;
 
-      if (!this.blocks.has(key)) {
-        // console.log(
-        //   `❌ piece ${pieceIdx} incomplete: missing offset=${offset}`,
-        // );
-        return false;
-      }
+      if (!this.blocks.has(key)) return false;
     }
-
-    // console.log(`✅ piece ${pieceIdx} HAS ALL ${numBlocks} BLOCKS`);
 
     return true;
   }
@@ -376,5 +351,10 @@ export class PieceManager {
     for (const key of this.blocks.keys())
       seen.add(Math.floor(key / this.blocksPerPiece));
     return seen.size;
+  }
+
+  public dropPiece(pieceIdx: number) {
+    this.clearPieceBlocks(pieceIdx);
+    this.senders.delete(pieceIdx);
   }
 }

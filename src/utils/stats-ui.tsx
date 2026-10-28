@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Text, Box, render } from "ink";
 import { memoryUsage } from "node:process";
-import type { Stats } from "./StatsReporter";
+import type { Stats } from "./Stats";
 
 export function formatBytes(n: number): string {
   if (n < 1024) return `${n.toFixed(0)} B`;
@@ -11,7 +11,7 @@ export function formatBytes(n: number): string {
 }
 
 function formatMbps(bytesPerSecond: number): string {
-  return `${((bytesPerSecond * 8) / 1e6).toFixed(2)} Mbps/s`; // megabit = 1e6 not 1024²
+  return `${((bytesPerSecond * 8) / 1e6).toFixed(2)} Mbps/s`;
 }
 
 function formatEta(sec: number): string {
@@ -44,7 +44,7 @@ function App({ stats }: { stats: Stats }) {
 
   useEffect(() => {
     const id = setInterval(() => {
-      stats.sample(delayMs); // 👈 sample here, render stays pure
+      stats.sample(delayMs); // sample here, render stays pure
       forceTick((t) => t + 1);
     }, delayMs);
     return () => clearInterval(id);

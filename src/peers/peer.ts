@@ -20,6 +20,7 @@ export class Peer {
   private remoteAddress;
   private port;
   private junkBytes = 0;
+  private maxBufferLength: number;
 
   private buf: Buffer = Buffer.alloc(0);
   private availablePieces: Set<number> = new Set<number>();
@@ -41,6 +42,10 @@ export class Peer {
     private totalPieces: number,
     private state: PeerState = createDefaultPeerState(),
   ) {
+    this.maxBufferLength = Math.max(
+      16 * 1024 + 9,
+      Math.ceil(this.totalPieces / 8) + 1,
+    );
     this.initReconHandlers();
     this.startReqLoop();
     this.startIncomingLoop();
@@ -77,7 +82,6 @@ export class Peer {
     if (this.disconnected) return;
     this.disconnected = true;
     for (const off of this.removeListener) off();
-    // console.log(`🌩️ Disconnected from peer ${this.remoteAddress}:${this.port}`);
 
     this.pendingRequests.clear();
     this.reqQueue.close();
@@ -159,7 +163,6 @@ export class Peer {
         // Remove matching request from upload tracking
 
         // not implemented and not important
-        //
         return;
 
       case "PIECE": {
@@ -198,7 +201,7 @@ export class Peer {
     const { pieceIdx, offset, length } = req;
     const buf = Buffer.alloc(17);
 
-    buf.writeUInt32BE(13, 0); // <-- FIX
+    buf.writeUInt32BE(13, 0);
     buf[4] = 0x06;
 
     buf.writeUInt32BE(pieceIdx, 5);
@@ -223,12 +226,9 @@ export class Peer {
   private async startReqLoop() {
     while (true) {
       const req = await this.reqQueue.pop();
-
       if (req === undefined) break;
 
       this.socket.write(req);
-
-      // console.log("OUTGOING", req[4]);
     }
   }
 
@@ -282,6 +282,10 @@ export class Peer {
       if (this.buf.length < 4) break;
 
       const messageLen = this.buf.readUInt32BE(0);
+      if (messageLen > this.maxBufferLength)
+        return this.ban(
+          `🔨 Banning peer ${this.clientName} for sending oversized message`,
+        );
 
       // Need the complete message
       if (this.buf.length < 4 + messageLen) break;
@@ -329,9 +333,9 @@ export class Peer {
 
   public SEND_PIECE({ pieceIdx, offset }: BlockRequest, blockBuf: Buffer) {
     // 4 bytes for length 1 for messge id 4 + 4 for pieceIdx and offset rest for the piece itself
-    const req = Buffer.alloc(4 + 1 + 4 + 4 + blockBuf.length);
+    const req = Buffer.alloc(13 + blockBuf.length);
 
-    req.writeUInt32BE(1 + 4 + 4 + blockBuf.length, 0);
+    req.writeUInt32BE(9 + blockBuf.length, 0);
     // message id for piece request is 7;
     req[4] = 0x7;
     req.writeUint32BE(pieceIdx, 5);
@@ -341,7 +345,7 @@ export class Peer {
     this.reqQueue.push(req);
   }
 
-  public takeStale(maxAgeMs: number): BlockRequest[] {
+  public staleRequests(maxAgeMs: number): BlockRequest[] {
     const now = Date.now();
     const stale: BlockRequest[] = [];
     for (const [key, { request, sentAt }] of this.pendingRequests) {

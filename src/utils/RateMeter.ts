@@ -31,7 +31,7 @@ export class RateMeter {
 
   get rate() {
     return this.ema;
-  } // bytes/sec, pure getter ✅
+  } // bytes/sec
   get bytes() {
     return this.total;
   } // lifetime total
