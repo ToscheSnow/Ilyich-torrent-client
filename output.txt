@@ -1,0 +1,298 @@
+Piece length: 754.0 KB
+Piece count: 1025
+
+HTTP trackers found  6
+UDP trackers found  80
+
+Started torrent at 8:57:09 PM
+
+OPENED FILE:  download/Avatar.Seven.Havens.S01E11.1080p.WEB.h264-GRACE[EZTVx.to].mkv
+
+Storage initialised
+Checking disk for existing pieces
+Took 0.32 secs
+Found 133 already on disk
+Available Pieces verified
+
+🤞🏻 Listening on 9090
+😨 Failed UDP Tracker count: 24
+URL http://tracker.openbittorrent.com/a Status: 403
+URL http://tracker.opentrackr.org:1337/ Status: 200
+URL https://tracker1.520.jp/announce?in Status: 521
+Our client: 2d7142353134302d4328446273794a49707e686f supports extensions 
+Our client: 2d7142353130302d4d30785979632e3845484857 supports extensions 
+Our client: 2d5554333630572d1eb9a91541c46fee5f3d7684 supports extensions 
+Our client: 2d7142353233302d63312e617431767736506668 supports extensions 
+Our client: 2d7142353134302d2e6f51366961345931625a4f supports extensions 
+Our client: 2d7142343339302d5a7570767e7541665a6f7863 supports extensions 
+Our client: 2d7142343339302d7228624673563958616b2e21 supports extensions 
+Our client: 2d7142353134302d554d2a476b2d375f2e623352 supports extensions 
+Our client: 2d7142353330302d33682a296e75644a70644e50 supports extensions 
+Our client: 2d7142353234302d4f6b6d71654d545265374457 supports extensions 
+Our client: 2d7142353233302d35285f696738675959386e50 supports extensions 
+Our client: 2d7142353130302d3278524d3365555468562866 supports extensions 
+Our client: 2d7142353130302d432a6b6634525a752e746248 supports extensions 
+Our client: 2d7142353233302d535a6c30705138397a704f54 supports extensions 
+Our client: 2d7142353234302d747a43556b595152496b4c79 supports extensions 
+Our client: 2d6c74304438302d5bb4e08f4098375d182e7b9b supports extensions 
+Our client: 2d7142353330302d4a7561312930762e352d286d supports extensions 
+Our client: 2d7142353130302d3653696e692a537e4e6f746d supports extensions 
+Our client: 2d7142353330302d582e6f7e43444f6a47463936 supports extensions 
+Our client: 2d4254376230572d1fb997ff69ff87b42b5e8fb7 supports extensions 
+Our client: 2d5554323231302d16621e1da7315b8aa2cb9859 supports extensions 
+Our client: 2d7142353330302d647721355a63356d5f61675f supports extensions 
+Our client: 2d7142353134302d393249777436777863554a2d supports extensions 
+Our client: 2d7142353134302d6467397044765252394a6737 supports extensions 
+Our client: 2d7142353330302d707557625445325468566268 supports extensions 
+Our client: 2d7142353234302d69424a372e674d2943324e4b supports extensions 
+Our client: 2d7142353330302d597568322e2e50586b4a4f51 supports extensions 
+Our client: 2d7142353330302d2d7e4a68377955464679544a supports extensions 
+Our client: 2d7142353330302d395f4a776d384f28646b7276 supports extensions 
+Our client: 2d7142353134302d636d34763058623632586f7a supports extensions 
+Our client: 2d7142353330302d76346c3761766b3076287530 supports extensions 
+Our client: 2d7142353233302d454139316729477665526957 supports extensions 
+Our client: 2d7142353234302d282d2e424f2d646b776b7e66 supports extensions 
+Our client: 2d7142353330302d474f214f3529766d4b2a6347 supports extensions 
+Our client: 2d7142353134302d4a32552a6148764f7a704639 supports extensions 
+Our client: 2d7142353034302d4828326c4b752e637a6c4d29 supports extensions 
+Our client: 2d7142353330302d626a7941426e30784b6a6964 supports extensions 
+Our client: 2d7142353330302d42585559332d446264314c4e supports extensions 
+Our client: 2d7142353233302d55794d513679516375423865 supports extensions 
+Our client: 2d7142353030302d556b50455954762d75612876 supports extensions 
+Our client: 2d7142343339302d3359375a51524a5544483754 supports extensions 
+Our client: 2d7142353330302d75453275484a56795747797a supports extensions 
+Our client: 2d7142353130302d5f5534596f6f6f33632d312a supports extensions 
+Our client: 2d7142353234302d5628772a52294a616730426f supports extensions 
+Our client: 2d7142353330302d33555f70574521714752704b supports extensions 
+Our client: 2d7142353330302d5a685f73794977494a536749 supports extensions 
+Our client: 2d7142353233302d6f7068427e304550742a4633 supports extensions 
+Our client: 2d7142353130302d717067384c7538674c59546c supports extensions 
+Our client: 2d7142353233302d47597141314a2d594178296c supports extensions 
+Our client: 2d7142353330302d644a4769484a56336e517550 supports extensions 
+Our client: 2d7142353232302d6f6b5a39735533744557664c supports extensions 
+Our client: 2d7142353134302d3469534d4a512a35562d4f44 supports extensions 
+Our client: 2d7142353330302d675a58544175556e635f5936 supports extensions 
+Our client: 2d7142353231302d7e544e4953584162445f2958 supports extensions 
+Our client: 2d7142353234302d32412e784371626f47615421 supports extensions 
+Our client: 2d7142353233302d6c7a32683932692e31345930 supports extensions 
+Our client: 2d7142353233302d6e6f7473327a31756957466e supports extensions 
+Our client: 2d7142353231302d6972705721686363212a5a61 supports extensions 
+Our client: 2d7142353330302d392167216e70424576583734 supports extensions 
+Our client: 2d7142353330302d52342a33397a346c51696f51 supports extensions 
+Our client: 2d7142343535302d476476696c63497069457668 supports extensions 
+Our client: 2d7142353233302d44287a6c2d574c65357e5063 supports extensions 
+Our client: 2d7142353233302d326574455562714f702e6559 supports extensions 
+Our client: 2d7142353130302d555569467266777e35616731 supports extensions 
+Our client: 2d7142353233302d35356e347528776274384776 supports extensions 
+Our client: 2d5452343133302d366e386b367a677135646262 supports extensions 
+Our client: 2d7142353330302d4c56744a29424d5053514928 supports extensions 
+Our client: 2d7142353132302d37366359635f55515871302e supports extensions 
+Our client: 2d7142353134302d4f4631743355425a21447645 supports extensions 
+Our client: 2d7142353234302d2942537965374a2154564a79 supports extensions 
+Our client: 2d7142343633302d527473685552567230514a31 supports extensions 
+Our client: 2d7142353233302d7e4e6e4373685a3235714172 supports extensions 
+Our client: 2d7142353130302d4c743261597832515f586529 supports extensions 
+Our client: 2d7142353330302d78484f306a33396f58626a4d supports extensions 
+Our client: 2d7142353234302d7a776c71476474286b28216b supports extensions 
+Our client: 2d7142353233302d35486167296128507a686b56 supports extensions 
+Our client: 2d7142353330302d35526234645a502876706154 supports extensions 
+Our client: 2d7142353234302d452d4a21305634437a34796b supports extensions 
+(I) They are interested
+📤 UNCHOKE PEER 
+Our client: 2d5554333630572d1eb999ee8bc81220df08d3ac supports extensions 
+Our client: 2d7142353330302d4d652d71596f6e216d655133 supports extensions 
+Our client: 2d5554333630572d1eb9d84c2b3d231025615c64 supports extensions 
+Our client: 2d7142353130302d436172514479485a52435777 supports extensions 
+Our client: 2d7142353134302d76295734476271546e355448 supports extensions 
+Our client: 2d7142353330302d327a396b426f4e4731366b7e supports extensions 
+Our client: 2d7142353330302d374a4d4332706f656668747a supports extensions 
+Our client: 2d7142353130302d2d6c622a6e21415561596454 supports extensions 
+Our client: 2d5554333630572d1eb916ac375f47488c80d787 supports extensions 
+Our client: 2d7142353330302d466f5165586538317a344974 supports extensions 
+Our client: 2d7142353234302d7543596e334e62434a5f7945 supports extensions 
+Our client: 2d7142353330302d675977584d72564344414861 supports extensions 
+Our client: 2d7142353134302d7628572a773342366d353637 supports extensions 
+Our client: 2d7142353232302d5f33354d6670385129642839 supports extensions 
+Our client: 2d7142353233302d635270465f39387152417876 supports extensions 
+Our client: 2d7142353330302d6f61705a7e73487a64415169 supports extensions 
+Our client: 2d7142353330302d645668335f796f725667307a supports extensions 
+Our client: 2d7142353233302d51316952566b4e2d6c365537 supports extensions 
+Our client: 2d7142353330302d5765674b622e5646557a5834 supports extensions 
+Our client: 2d5554333630572d1eb9b6f45f9c0e971abcb944 supports extensions 
+Our client: 2d7142353033302d47214a41526d586549485644 supports extensions 
+Our client: 2d7142353330302d4a617149563436712a554864 supports extensions 
+Our client: 2d7142353234302d4b6f45467934744751675f66 supports extensions 
+Our client: 2d7142353330302d68714c6f6648705161466b77 supports extensions 
+Our client: 2d7142353330302d356c70793330624f322e7e49 supports extensions 
+Our client: 2d7142353330302d4e596678724a496835344569 supports extensions 
+Our client: 2d7142353330302d325137687a62297a527e3774 supports extensions 
+Our client: 2d6c74304437302da114db64ac13cf20b098123d supports extensions 
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                                          │
+│ Progress: 358 pieces (34.9%) — 263.61 MB total                                                                           │
+│ Uploaded 24.14 MB total                                                                                                  │
+│ Speed: 124.72 Mbps/s                                                                                                     │
+│ Downloaded (Not written to Disk) 69.49 MB                                                                                │
+│ ETA: 33s                                                                                                                 │
+│                                                                                                                          │
+│ Peers: 97                                                                                                                │
+│ Choked Peers: 4                                                                                                          │
+│ Seeders: 92                                                                                                              │
+│                                                                                                                          │
+│ Top peers                                                                                                                │
+│ µTorrent 3.6.0.W       ↓ 17.87 Mbps/s                                                                                    │
+│ qBittorrent 5.1        ↓ 15.50 Mbps/s                                                                                    │
+│ qBittorrent 5.3        ↓ 14.81 Mbps/s                                                                                    │
+│ qBittorrent 5.3        ↓ 11.40 Mbps/s                                                                                    │
+│ BitTorrent 7.b.0.W     ↓ 11.00 Mbps/s                                                                                    │
+│                                                                                                                          │
+│ RSS: 118.45 MB | Heap: 140.29 MB                                                                                         │
+│ External: 125.22 MB | ArrayBuffers: 29.31 MB                                                                             │
+│                                                                                                                          │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+Piece length: 754.0 KB
+Piece count: 1025
+
+HTTP trackers found  6
+UDP trackers found  80
+
+Started torrent at 8:58:33 PM
+
+OPENED FILE:  download/Avatar.Seven.Havens.S01E11.1080p.WEB.h264-GRACE[EZTVx.to].mkv
+
+Storage initialised
+Checking disk for existing pieces
+Took 0.34 secs
+Found 377 already on disk
+Available Pieces verified
+
+🤞🏻 Listening on 9090
+😨 Failed UDP Tracker count: 24
+URL http://tracker.openbittorrent.com/a Status: 403
+URL http://tracker.opentrackr.org:1337/ Status: 200
+URL https://tracker1.520.jp/announce?in Status: 521
+Friendly client: 2d7142353134302d2e6976556c4b657e5639726a supports extensions 
+Friendly client: 2d424c3234363336362d4d543572627e666f4558 supports extensions 
+Friendly client: 2d7142353330302d5f755970756329376c58646a supports extensions 
+Friendly client: 2d7142353233302d622d514e706c51485071294e supports extensions 
+Friendly client: 2d7142353233302d31432e6344413361634a3272 supports extensions 
+Friendly client: 2d4254376230572d1fb98432f47d69cc39dd8d2e supports extensions 
+Friendly client: 2d7142353130302d217952464833495035673651 supports extensions 
+Friendly client: 2d7142353134302d4c7835653175364e6a534d65 supports extensions 
+Friendly client: 2d7142353330302d69216e3853356f2d6153752e supports extensions 
+Friendly client: 2d7142353233302d7a4e646d4c6879523232534c supports extensions 
+Friendly client: 2d7142353130302d7e4446322e584153296f416d supports extensions 
+Friendly client: 2d5554333630572d1eb94042638455b1d14e20ed supports extensions 
+Friendly client: 2d7142353233302d615152727059523654386346 supports extensions 
+Friendly client: 2d7142353234302d216e7a58567a5357627a4e65 supports extensions 
+Friendly client: 2d7142353330302d2e53675566366b54757a2d4d supports extensions 
+Friendly client: 2d7142353330302d7465386e765a455a63556d49 supports extensions 
+Friendly client: 2d7142353233302d4776497e3548327e496e3442 supports extensions 
+Friendly client: 2d7142353330302d7e6d4358633068705a6e6c62 supports extensions 
+Friendly client: 2d7142353134302d4d5f45536e46774e672a2a33 supports extensions 
+Friendly client: 2d7142353330302d6d6473477574793866474b44 supports extensions 
+Friendly client: 2d7142353330302d37354664576b3050214a5648 supports extensions 
+Friendly client: 2d5554323231302d16621e1da7315b8aa2cb9859 supports extensions 
+Friendly client: 2d7142353330302d5a725335454342676f63674f supports extensions 
+Friendly client: 2d7142353330302d71544b366b5f6b437a565763 supports extensions 
+Friendly client: 2d7142353330302d4a2a6a697638574c3649595f supports extensions 
+Friendly client: 2d7142353134302d69626b4d697733434a763249 supports extensions 
+Friendly client: 2d7142353130302d516a78287039647167546e67 supports extensions 
+Friendly client: 2d7142353233302d68372834432d45296674556a supports extensions 
+Friendly client: 2d7142353330302d776c592e2931534971453571 supports extensions 
+Friendly client: 2d7142353330302d576b6571374f63494642795f supports extensions 
+Friendly client: 2d7142353330302d6a7a6f686442666a62324146 supports extensions 
+Friendly client: 2d7142353034302d51556f45285429472d796343 supports extensions 
+Friendly client: 2d7142353130302d56416f582a76682a4d5a7877 supports extensions 
+Friendly client: 2d7142353233302d634d3975424d76353245472d supports extensions 
+Friendly client: 2d5554333630572d1eb943afbfbd048778e2a371 supports extensions 
+Friendly client: 2d7142353330302d6e5f7179752a565a64466f70 supports extensions 
+Friendly client: 2d7142353132302d532d49346d467a462d633947 supports extensions 
+Friendly client: 2d7142353034302d4251447576547a532e332948 supports extensions 
+Friendly client: 2d7142343339302d3359375a51524a5544483754 supports extensions 
+Friendly client: 2d7142353233302d6c4a4a717157753846425947 supports extensions 
+Friendly client: 2d7142353330302d582a5a51285347634e75316c supports extensions 
+Friendly client: 2d7142353330302d49645555214d64785a323153 supports extensions 
+Friendly client: 2d7142353330302d6256446c5f514f714a214576 supports extensions 
+Friendly client: 2d7142353130302d53287437345a736c5a452953 supports extensions 
+Friendly client: 2d7142353233302d4c63486a7572347e2d29644a supports extensions 
+Friendly client: 2d7142353234302d784676725872463268515742 supports extensions 
+Friendly client: 2d7142353134302d3036665a4f6b6e77736a5568 supports extensions 
+Friendly client: 2d7142353130302d355f5f2d526c484a49553363 supports extensions 
+Friendly client: 2d7142353234302d636b4b4450775f76412e7550 supports extensions 
+Friendly client: 2d4254376230572d1fb9fe8fdcd239d3a0aed1a7 supports extensions 
+Friendly client: 2d7142353330302d4b77426e3759316c6e34297e supports extensions 
+Friendly client: 2d7142353234302d5a4f6e316d6d5051674d5033 supports extensions 
+Friendly client: 2d7142353330302d294d30546668624239655f4b supports extensions 
+Friendly client: 2d7142353233302d305156636a3552354d5f332e supports extensions 
+Friendly client: 2d7142353231302d357442552136792d77496634 supports extensions 
+Friendly client: 2d7142353330302d4d637462524f685459216f47 supports extensions 
+Friendly client: 2d5452323933302d62697476687a3938666f7174 supports extensions 
+Friendly client: 2d7142353330302d2a2d57656830586361463434 supports extensions 
+Friendly client: 2d7142353130302d4669443465705a2833665046 supports extensions 
+Friendly client: 2d7142353330302d3273744b5379504a4e6a5628 supports extensions 
+Friendly client: 2d7142353234302d3770423275536138497e5a21 supports extensions 
+Friendly client: 2d5452343036302d6a7531686434656e74313272 supports extensions 
+Friendly client: 2d7142343235302d422a574d397528292d5a5730 supports extensions 
+Friendly client: 2d7142353231302d656a3364367351482a287052 supports extensions 
+Friendly client: 2d7142353233302d6f4c724b4532287e796f5242 supports extensions 
+Friendly client: 2d7142353233302d79706b5a3762635f6a547875 supports extensions 
+(I) They are interested
+📤 UNCHOKE PEER 
+Friendly client: 2d7142353234302d584c564a212d336353657048 supports extensions 
+(I) They are interested
+📤 UNCHOKE PEER 
+Friendly client: 2d7142353330302d70785472587852562d7a6330 supports extensions 
+Friendly client: 2d4c54313042302d704b7a34566b442875712130 supports extensions 
+Friendly client: 2d5452323933302d73617976667a376572793839 supports extensions 
+Friendly client: 2d7142353234302d336b7a5428716e7372434447 supports extensions 
+Friendly client: 2d7142353330302d6752666d476272774c733329 supports extensions 
+Friendly client: 2d7142353130302d3458637439746a6e47415335 supports extensions 
+Friendly client: 2d7142353130302d44537a37595254362a505869 supports extensions 
+Friendly client: 2d4254376230572d1fb986d24020ea5179de68cf supports extensions 
+Friendly client: 2d7142353130302d3533445767785f335a795276 supports extensions 
+Friendly client: 2d7142353234302d7449376c57526566694b704c supports extensions 
+Friendly client: 2d7142353330302d78322e6d365276464c21296b supports extensions 
+Friendly client: 2d7142353233302d2a3148354843727479467043 supports extensions 
+Friendly client: 2d7142353033302d674f59394f294572714f6d6a supports extensions 
+Friendly client: 2d7142353134302d774d724c4933784e5533516d supports extensions 
+Friendly client: 2d7142353233302d314673334a524e7333554f53 supports extensions 
+Friendly client: 2d7142353330302d6235492a434d44375976575f supports extensions 
+Friendly client: 2d7142353330302d296c55322156474c526a6a65 supports extensions 
+Friendly client: 2d7142353330302d6d75774e3438697876545744 supports extensions 
+Friendly client: 2d7142353132302d55764e41535348285730704a supports extensions 
+Friendly client: 2d7142353233302d676a32784b397054782a5376 supports extensions 
+Friendly client: 2d7142353134302d30634b4e7a76732e34294b28 supports extensions 
+Friendly client: 2d7142353234302d636f6e5a334f477e392d7438 supports extensions 
+Friendly client: 2d7142343339302d68344266745869322a2d2d6e supports extensions 
+Friendly client: 2d7142353234302d5039644e5544346f636b5956 supports extensions 
+Friendly client: 2d7142353330302d496978716a4a5246467e4974 supports extensions 
+Friendly client: 2d7142353130302d2842647e6f4237677334594c supports extensions 
+Friendly client: 2d7142353130302d29614a7e5944492148772e58 supports extensions 
+Friendly client: 2d7142353330302d737246316c6c326b5a504961 supports extensions 
+Friendly client: 2d7142353330302d655a7a67706e296c4f2e436d supports extensions 
+Friendly client: 2d7142353233302d216d6e444a2e4a6b4c653156 supports extensions 
+Friendly client: 2d424c3234363336362d56415329423957483033 supports extensions 
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                                          │
+│ Progress: 452 pieces (44.1%) — 332.82 MB total                                                                           │
+│ Uploaded 6.92 MB total                                                                                                   │
+│ Speed: 154.23 Mbps/s                                                                                                     │
+│ Downloaded (Not written to Disk) 95.79 MB                                                                                │
+│ ETA: 22s                                                                                                                 │
+│                                                                                                                          │
+│ Peers: 90                                                                                                                │
+│ Choked Peers: 2                                                                                                          │
+│ Seeders: 84                                                                                                              │
+│                                                                                                                          │
+│ Top peers                                                                                                                │
+│ qBittorrent 5.3        ↓ 22.18 Mbps/s                                                                                    │
+│ qBittorrent 5.2.3      ↓ 17.61 Mbps/s                                                                                    │
+│ qBittorrent 5.3        ↓ 16.44 Mbps/s                                                                                    │
+│ BitTorrent 7.b.0.W     ↓ 16.28 Mbps/s                                                                                    │
+│ qBittorrent 5.1.4      ↓ 14.58 Mbps/s                                                                                    │
+│                                                                                                                          │
+│ RSS: 114.50 MB | Heap: 163.08 MB                                                                                         │
+│ External: 142.98 MB | ArrayBuffers: 24.22 MB                                                                             │
+│                                                                                                                          │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

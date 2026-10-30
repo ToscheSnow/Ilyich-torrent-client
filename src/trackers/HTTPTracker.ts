@@ -21,25 +21,22 @@ export type TrackerAnnounceArgs = {
   port: number;
 };
 
-export class HTTPTracker {
-  private readonly urls: string[];
+export class HttpTracker {
   private announceTimer?: ReturnType<typeof setInterval>;
   private failedTrackers: Set<string> = new Set<string>();
 
   constructor(
-    decodedTorrent: BencodeDict,
-    private args: TrackerAnnounceArgs,
+    private readonly urls: string[],
+    private readonly args: TrackerAnnounceArgs,
     private getTransferStats: () => TransferStats,
     private onResponse: (peersAddresses: PeerAddress[]) => void,
     private recon: Recon<TorrentEvents>,
   ) {
-    this.urls = this.getTrackerAddr(decodedTorrent);
-
     if (this.urls.length === 0) {
       console.log("No HTTP trackers found in torrent");
     }
 
-    this.recon.listen("DOWNLOAD_COMPLETE", () => {
+    this.recon.once("DOWNLOAD_COMPLETE", () => {
       console.log("📦 Disconnect HTTP TRACKER");
       this.disconnect();
     });
@@ -49,57 +46,12 @@ export class HTTPTracker {
     clearInterval(this.announceTimer);
   }
 
-  private getTrackerAddr(decodedTorrent: BencodeDict): string[] {
-    // use a Set so a urls appearing in both announce-list and announce
-    // doesn't get announced to twice😂
-    const httpUrls = new Set<string>();
-    const decoder = new TextDecoder();
-    let http = 0;
-
-    // announce-list is OPTIONAL per BEP 12 - plenty of real .torrent files
-    const announcers = decodedTorrent["announce-list"] as
-      | Uint8Array[][]
-      | undefined;
-
-    if (announcers) {
-      for (const tier of announcers) {
-        for (const trackerBytes of tier) {
-          const url = decoder.decode(trackerBytes);
-
-          if (this.isHttpTracker(url)) {
-            httpUrls.add(url);
-            http++;
-          }
-        }
-      }
-    }
-
-    console.log("\nHTTP trackers found ", http);
-
-    // "announce" is required by the original spec but guard anyway in case
-    const announceBytes = decodedTorrent["announce"] as Uint8Array | undefined;
-
-    if (announceBytes) {
-      const announce = decoder.decode(announceBytes);
-
-      if (this.isHttpTracker(announce)) {
-        httpUrls.add(announce);
-      }
-    }
-
-    return [...httpUrls];
-  }
-
-  private isHttpTracker(url: string): boolean {
-    return url.startsWith("http://") || url.startsWith("https://");
-  }
-
   public async announce() {
     // send requests to tracker at the same time
     const fetchSingleReq = async (url: string) => {
       if (this.failedTrackers.has(url)) return;
       try {
-        const response = await this.announceTracker(url);
+        const response = await this.requestTracker(url);
         this.onResponse(response.peers);
       } catch (err) {
         this.failedTrackers.add(url);
@@ -118,7 +70,7 @@ export class HTTPTracker {
     console.log(`😨 Failed HTTP Tracker count: ${this.failedTrackers.size}`);
   }
 
-  private async announceTracker(trackerUrl: string): Promise<TrackerResponse> {
+  private async requestTracker(trackerUrl: string): Promise<TrackerResponse> {
     const { downloaded, uploaded, left } = this.getTransferStats();
     const url = httpTrackerQuery(
       {

@@ -14,11 +14,10 @@ enum PEER_MESSAGE_ID {
   EXTENDED = 20,
 }
 
-
-
 export function decodeIncomingPeerMessage(message: Buffer): PeerEvent {
   // messageID always takes up 1 byte
-  const messageID = message.readUInt8();
+  // we dont get the length of the message original
+  const messageID = message.readUInt8(0);
   //according to the bitTorrent protocol
 
   //must read unsigned integers
@@ -44,7 +43,6 @@ export function decodeIncomingPeerMessage(message: Buffer): PeerEvent {
       return { type: "BITFIELD", field: Buffer.from(message.subarray(1)) };
 
     case PEER_MESSAGE_ID.REQUEST:
-      
       //REQUEST has a payload of 12 bytes from 4 each from pieceNum , offset and length
       if (message.length !== 13) throw new Error("Invalid REQUEST message");
       return {
@@ -95,6 +93,7 @@ export function decodeIncomingPeerMessage(message: Buffer): PeerEvent {
     case PEER_MESSAGE_ID.EXTENDED:
       return {
         type: "EXTENDED",
+        extendedMessageId: message.readUInt8(1),
       };
 
     default:

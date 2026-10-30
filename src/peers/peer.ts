@@ -17,18 +17,20 @@ import { RateMeter } from "../utils/RateMeter";
 const MAX_JUNK_BYTES = 5 * 1024 * 1024;
 
 export class Peer {
-  private remoteAddress;
-  private port;
+  private readonly state: PeerState = createDefaultPeerState();
+  private readonly remoteAddress;
+  private readonly port;
   private junkBytes = 0;
-  private maxBufferLength: number;
+  private readonly maxBufferLength: number;
 
   private buf: Buffer = Buffer.alloc(0);
   private availablePieces: Set<number> = new Set<number>();
   private disconnected = false;
 
-  private pendingRequests = new Map<string, PendingRequest>();
-  private reqQueue: AsyncMessageQueue<Buffer> = new AsyncMessageQueue<Buffer>();
-  private incomingQueue: AsyncMessageQueue<Buffer> =
+  private readonly pendingRequests = new Map<string, PendingRequest>();
+  private readonly reqQueue: AsyncMessageQueue<Buffer> =
+    new AsyncMessageQueue<Buffer>();
+  private readonly incomingQueue: AsyncMessageQueue<Buffer> =
     new AsyncMessageQueue<Buffer>();
 
   public readonly down = new RateMeter();
@@ -40,7 +42,6 @@ export class Peer {
     private recon: Recon<TorrentEvents>,
     private pieceHandler: (piece: Piece, peer: Peer) => Promise<void>,
     private totalPieces: number,
-    private state: PeerState = createDefaultPeerState(),
   ) {
     this.maxBufferLength = Math.max(
       16 * 1024 + 9,

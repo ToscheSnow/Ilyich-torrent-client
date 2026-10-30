@@ -9,16 +9,17 @@ import { PeerManager } from "./peers/PeerManager";
 import type { Peer } from "./peers/peer";
 
 import { CLIENT_ID_BYTES } from "./client";
-import { HTTPTracker, type TrackerAnnounceArgs } from "./trackers/HTTPTracker";
 import { Stats } from "./utils/Stats";
 import { Scheduler } from "./Scheduler/scheduler";
 import type { BencodeDict } from "./types/parserTypes";
 import { getMeta } from "./fileParsing/meta";
 import type { BlockRequest, Piece } from "./types/peerTypes";
 import { startStatsUI } from "./utils/stats-ui";
-import { UDPTracker } from "./trackers/udpTracker";
+import { UdpTracker } from "./trackers/udpTracker";
 import { Recon } from "./Emitter/Recon";
 import { formatElapsedTime } from "./utils/formatTime";
+import { extractTrackerUrls } from "./trackers/extractURLs";
+import { HttpTracker, type TrackerAnnounceArgs } from "./trackers/httpTracker";
 
 export type TorrentEvents = {
   "PEER:CONNECT": [Peer];
@@ -45,8 +46,8 @@ export class Torrent {
   private readonly pieceManager: PieceManager;
   private readonly scheduler: Scheduler;
   private readonly peerManager: PeerManager;
-  private readonly udpTracker: UDPTracker;
-  private readonly HTTPTracker: HTTPTracker;
+  private readonly udpTracker: UdpTracker;
+  private readonly HTTPTracker: HttpTracker;
   private stats: Stats;
 
   private readonly meta;
@@ -103,8 +104,11 @@ export class Torrent {
       port: 6881,
     };
 
-    this.HTTPTracker = new HTTPTracker(
-      decodedTorrent,
+    // tracker setup
+    const { httpUrls, udpUrls } = extractTrackerUrls(decodedTorrent);
+
+    this.HTTPTracker = new HttpTracker(
+      httpUrls,
       args,
       this.stats.transferStats,
       (peerAddresses) => {
@@ -113,8 +117,8 @@ export class Torrent {
       this.recon,
     );
 
-    this.udpTracker = new UDPTracker(
-      decodedTorrent,
+    this.udpTracker = new UdpTracker(
+      udpUrls,
       args,
       this.stats.transferStats,
       (peerAddresses) => {
@@ -129,7 +133,7 @@ export class Torrent {
     const downloadStartTime = performance.now();
     console.log(`\nStarted torrent at ${new Date().toLocaleTimeString()}\n`);
 
-    this.recon.listen("DOWNLOAD_COMPLETE", () => {
+    this.recon.once("DOWNLOAD_COMPLETE", () => {
       const downloadFinishTime = performance.now();
       console.log(`Finished downloading at ${new Date().toLocaleTimeString()}`);
       console.log(

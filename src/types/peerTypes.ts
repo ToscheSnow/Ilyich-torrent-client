@@ -1,16 +1,12 @@
 export interface PeerState {
   // i can send
   amChoking: boolean;
-
   // i want something
   amInterested: boolean;
-
   // i can not receive
   peerChoking: boolean;
-
   // they want something
   peerInterested: boolean;
-
   maxInFlight: number;
 }
 
@@ -40,7 +36,7 @@ export type PeerEvent =
   | { type: "PIECE"; piece: Piece }
   | { type: "CANCEL"; block: BlockRequest }
   | { type: "PORT" }
-  | { type: "EXTENDED" };
+  | { type: "EXTENDED"; extendedMessageId: number };
 
 export interface PieceInfo {
   pieceIdx: number;

@@ -1,7 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type { TrackerAnnounceArgs } from "./HTTPTracker";
 import dgram from "node:dgram";
-import type { BencodeDict } from "../types/parserTypes";
 import { AsyncMessageQueue } from "../Queues/MessageQueue";
 import { parsePeerAddress } from "../fileParsing/parsePeerAddress";
 import dns from "node:dns/promises";
@@ -10,6 +8,7 @@ import type { Recon } from "../Emitter/Recon";
 import type { TorrentEvents } from "../torrent";
 import type { TrackerEvent } from "../types/trackerTypes";
 import type { TransferStats } from "../utils/Stats";
+import type { TrackerAnnounceArgs } from "./httpTracker";
 
 class SilentParseError extends Error {
   constructor(message: string) {
@@ -47,7 +46,7 @@ interface ConnectedState {
   expiresAt: number;
 }
 
-export class UDPTracker {
+export class UdpTracker {
   //session key allows the server to identify us if our IP changes middownload (32 bit long)
   private SESSION_KEY = randomBytes(4);
   private pendingRequests = new Map<number, TrackerRequest>();
@@ -62,21 +61,20 @@ export class UDPTracker {
   private incomingMessageQueue = new AsyncMessageQueue<TrackerEvent>();
   private outgoingMessageQueue = new AsyncMessageQueue<Datagram>();
 
-  private urls: string[];
   private failedTrackers = new Set<string>();
 
   private hasAnnouncedStart = false;
   private hasAnnouncedCompletion = false;
 
+  private timer!: ReturnType<typeof setInterval>;
+
   constructor(
-    private decodedTorrent: BencodeDict,
+    private readonly urls: string[],
     private args: TrackerAnnounceArgs,
     private getTransferStats: () => TransferStats,
     private onResponse: (peersAddresses: PeerAddress[]) => void,
     private recon: Recon<TorrentEvents>,
   ) {
-    this.urls = this.getUDPTrackers(this.decodedTorrent);
-
     this.socket.on("message", (message, { address, port }) => {
       try {
         const event = this.parseEventFromMessage(message, address, port);
@@ -93,7 +91,7 @@ export class UDPTracker {
       );
     });
 
-    this.recon.listen("DOWNLOAD_COMPLETE", () => {
+    this.recon.once("DOWNLOAD_COMPLETE", () => {
       console.log("📦 Disconnect UDP TRACKER");
       this.disconnect();
     });
@@ -111,7 +109,7 @@ export class UDPTracker {
     for (const [_, timer] of this.retries) {
       timer.close();
     }
-
+    this.timer.close();
     this.retries.clear();
     this.pendingRequests.clear();
     this.trackerStates.clear();
@@ -147,7 +145,6 @@ export class UDPTracker {
       this.hasAnnouncedCompletion = true;
       return 1; // completed
     }
-
     return 0; // none
   }
 
@@ -437,51 +434,6 @@ export class UDPTracker {
     return [transactionID.readUint32BE(0), buf];
   }
 
-  private getUDPTrackers(decodedTorrent: BencodeDict): string[] {
-    // use a Set so a this.urls appearing in both announce-list and announce
-    // doesn't get announced to twice😂
-    const udpURLs = new Set<string>();
-    const decoder = new TextDecoder();
-    let udpCount = 0;
-
-    function isUDPTracker(url: string): boolean {
-      return url.startsWith("udp://");
-    }
-
-    // announce-list is OPTIONAL per BEP 12 - plenty of real .torrent files
-    const announcers = decodedTorrent["announce-list"] as
-      | Uint8Array[][]
-      | undefined;
-
-    if (announcers) {
-      for (const tier of announcers) {
-        for (const trackerBytes of tier) {
-          const url = decoder.decode(trackerBytes);
-
-          if (isUDPTracker(url)) {
-            udpURLs.add(url);
-            udpCount++;
-          }
-        }
-      }
-    }
-
-    console.log("UDP trackers found ", udpCount);
-
-    // "announce" is required by the original spec but guard anyway in case
-    const announceBytes = decodedTorrent["announce"] as Uint8Array | undefined;
-
-    if (announceBytes) {
-      const announce = decoder.decode(announceBytes);
-
-      if (isUDPTracker(announce)) {
-        udpURLs.add(announce);
-      }
-    }
-
-    return [...udpURLs];
-  }
-
   private announceRequestBuffer(
     connectionID: bigint,
     { infoHash, peerId, port }: TrackerAnnounceArgs,
@@ -545,7 +497,7 @@ export class UDPTracker {
 
   public async announce() {
     // send concurrent tracker requests
-    const connect = async (url: string) => {
+    const requestTracker = async (url: string) => {
       if (this.failedTrackers.has(url)) return;
       let urlObj = new URL(url);
       let portStr = new URL(url).port;
@@ -571,16 +523,16 @@ export class UDPTracker {
       }
     };
 
-    setInterval(
+    this.timer = setInterval(
       async () => {
         console.log("😋 Sent UDP Tracker request");
-        await Promise.allSettled(this.urls.map((url) => connect(url)));
+        await Promise.allSettled(this.urls.map((url) => requestTracker(url)));
         console.log(`😨 Failed UDP Tracker count: ${this.failedTrackers.size}`);
       },
       1 * 60 * 1000,
     );
 
-    await Promise.allSettled(this.urls.map((url) => connect(url)));
+    await Promise.allSettled(this.urls.map((url) => requestTracker(url)));
     console.log(`😨 Failed UDP Tracker count: ${this.failedTrackers.size}`);
   }
 }
