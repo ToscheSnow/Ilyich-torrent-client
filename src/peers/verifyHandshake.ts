@@ -13,12 +13,12 @@ export function verifyHandshake(sent: Buffer, received: Buffer) {
   const remotePeerId = Buffer.from(received.subarray(48, 68));
   const supportsExtensions =
     isSuccessful && (received.readUInt8(25) & 0x10) !== 0;
-
-  console.log(`Friendly client: ${remotePeerId.toHex()} supports extensions `);
+  const supportsDHT = isSuccessful && (received.readUint8(27) & 0x01) !== 0;
 
   return {
     isSuccessful,
     remotePeerId,
     supportsExtensions,
+    supportsDHT,
   };
 }

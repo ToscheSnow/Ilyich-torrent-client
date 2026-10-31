@@ -7,6 +7,7 @@ import type { TorrentEvents } from "../torrent";
 import { formatBytes } from "../utils/stats-ui";
 import { PieceValidator } from "./PieceValidator";
 import type { Recon } from "../Emitter/Recon";
+import { addPiece, hasPiece } from "./bitfield";
 
 export class PieceManager {
   private totalLength: number;
@@ -14,7 +15,8 @@ export class PieceManager {
 
   private blocks: Map<number, Buffer> = new Map<number, Buffer>();
   private hashes: Uint8Array;
-  private verifiedPieces: Set<number> = new Set<number>();
+  private verifiedPieces: Uint8Array;
+  private downloadedPieceCounter = 0;
   private numPieces: number;
   private blocksPerPiece = 0;
   public validator: PieceValidator;
@@ -42,6 +44,7 @@ export class PieceManager {
     }
 
     this.numPieces = Math.ceil(this.totalLength / pieceLength);
+    this.verifiedPieces = new Uint8Array((this.numPieces + 7) >> 3);
 
     this.blocksPerPiece = Math.ceil(pieceLength / BLOCK_SIZE);
     this.validator = new PieceValidator(this.totalLength, pieceLength);
@@ -65,7 +68,7 @@ export class PieceManager {
   public completeDownloadHandler() {
     if (this.downloadCompleted) return;
 
-    if (this.verifiedPieces.size !== this.numPieces) return;
+    if (this.downloadedPieceCounter !== this.numPieces) return;
 
     this.downloadCompleted = true;
 
@@ -110,7 +113,7 @@ export class PieceManager {
   public receiveBlock = async (piece: Piece, peer: Peer) => {
     const { pieceIdx, offset, block } = piece;
 
-    if (this.verifiedPieces.has(pieceIdx)) return;
+    if (hasPiece(this.verifiedPieces, pieceIdx)) return;
 
     if (!this.validator.isValidBlock(pieceIdx, offset, block.length)) {
       console.warn("Invalid piece receiveBlock");
@@ -143,7 +146,9 @@ export class PieceManager {
       this.settleSuspects(pieceIdx, assembled);
       await this.storageManager.writePiece(pieceIdx, assembled);
 
-      this.verifiedPieces.add(pieceIdx);
+      if (!hasPiece(this.verifiedPieces, pieceIdx))
+        this.downloadedPieceCounter++;
+      addPiece(this.verifiedPieces, pieceIdx);
       this.senders.delete(pieceIdx);
 
       this.clearPieceBlocks(pieceIdx);
@@ -208,7 +213,7 @@ export class PieceManager {
   }
 
   public getNeededBlocks(pieceIdx: number): BlockRequest[] {
-    if (this.verifiedPieces.has(pieceIdx)) {
+    if (hasPiece(this.verifiedPieces, pieceIdx)) {
       return [];
     }
 
@@ -249,7 +254,9 @@ export class PieceManager {
         return;
       }
 
-      this.verifiedPieces.add(pieceIdx);
+      if (!hasPiece(this.verifiedPieces, pieceIdx))
+        this.downloadedPieceCounter++;
+      addPiece(this.verifiedPieces, pieceIdx);
       this.recon.announce("PIECE:EXISTING", pieceLen);
     };
 
@@ -273,7 +280,7 @@ export class PieceManager {
 
     const end = performance.now();
     console.log(`Took ${((end - startTime) / 1000).toFixed(2)} secs`);
-    console.log(`Found ${this.verifiedPieces.size} already on disk`);
+    console.log(`Found ${this.downloadedPieceCounter} already on disk`);
   }
 
   private clearPieceBlocks(pieceIdx: number) {
@@ -285,16 +292,19 @@ export class PieceManager {
   }
 
   getVerifiedPieces = (): {
-    verifiedPieces: ReadonlySet<number>;
+    verifiedPiecesBitfield: Readonly<Uint8Array>;
     totalPieces: number;
   } => {
-    return { verifiedPieces: this.verifiedPieces, totalPieces: this.numPieces };
+    return {
+      verifiedPiecesBitfield: this.verifiedPieces,
+      totalPieces: this.numPieces,
+    };
   };
 
   private readCache = new Map<number, Promise<Buffer>>();
 
   getBlock = async ({ pieceIdx, offset, length }: BlockRequest) => {
-    if (!this.verifiedPieces.has(pieceIdx)) return undefined;
+    if (!hasPiece(this.verifiedPieces, pieceIdx)) return undefined;
 
     let p = this.readCache.get(pieceIdx);
     if (p) {
@@ -321,7 +331,7 @@ export class PieceManager {
   }
 
   public allOffsets(pieceIdx: number): number[] {
-    if (this.verifiedPieces.has(pieceIdx)) return [];
+    if (hasPiece(this.verifiedPieces, pieceIdx)) return [];
     const offs: number[] = [];
     for (let i = this.validator.getBlockCount(pieceIdx) - 1; i >= 0; i--) {
       if (!this.blocks.has(this.key(pieceIdx, i * BLOCK_SIZE)))

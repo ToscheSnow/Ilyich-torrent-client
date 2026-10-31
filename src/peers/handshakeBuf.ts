@@ -12,6 +12,12 @@ export function handshakeBuf(
   // copy protcol "BitTorrent protcol" into the buffer
   buf.set(pstr, 1);
   //20 to 27 are reserved
+  // congratulations baka now we have become mature enough to use extensions and dht 😈
+
+  //advertise extensions
+  buf.writeUInt8(0x10, 25);
+  //advertise dht
+  buf.writeUInt8(0x01, 27);
 
   // 20 bytes for the infoHash
   buf.set(infoHash, 28);

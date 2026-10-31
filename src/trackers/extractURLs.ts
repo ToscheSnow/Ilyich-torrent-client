@@ -42,10 +42,6 @@ export function extractTrackerUrls(decodedTorrent: BencodeDict): {
     }
   }
 
-  console.log("\nHTTP trackers found ", httpCount);
-  console.log("UDP trackers found ", udpCount);
-
-  // "announce" is required by the original spec but guard anyway in case
   const announceBytes = decodedTorrent["announce"] as Uint8Array | undefined;
 
   if (announceBytes) {
@@ -57,6 +53,11 @@ export function extractTrackerUrls(decodedTorrent: BencodeDict): {
       udpUrls.add(announce);
     }
   }
+
+  console.log("\nHTTP trackers found ", httpCount);
+  console.log("UDP trackers found ", udpCount);
+
+  // "announce" is required by the original spec but guard anyway in case
 
   return {
     httpUrls: [...httpUrls],

@@ -26,7 +26,7 @@ export type TorrentEvents = {
   "PEER:DISCONNECT": [Peer];
   "PEER:CHOKE": [Peer];
   "PEER:HAVE": [Peer];
-  "PEER:BITFIELD": [Peer];
+  "PEER:BITFIELD": [];
   "PIECE:COMPLETED": [number, number];
   "PEER:UNCHOKE": [Peer];
   DOWNLOAD_COMPLETE: [];

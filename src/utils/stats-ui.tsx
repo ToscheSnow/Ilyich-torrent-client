@@ -11,7 +11,7 @@ export function formatBytes(n: number): string {
 }
 
 function formatMbps(bytesPerSecond: number): string {
-  return `${((bytesPerSecond * 8) / 1e6).toFixed(2)} Mbps/s`;
+  return `${((bytesPerSecond * 8) / 1e6).toFixed(2)} Mbps`;
 }
 
 function formatEta(sec: number): string {
@@ -31,7 +31,6 @@ function PeerTable({ stats }: { stats: Stats }) {
       {rows.map((p) => (
         <Text key={p.addr}>
           {p.peerName.padEnd(22)} ↓ {formatMbps(p.down.rate).padStart(11)}
-          {/* {"  "}↑ {formatMbps(p.up.rate).padStart(11)} */}
         </Text>
       ))}
     </Box>

@@ -4,7 +4,6 @@ import net from "node:net";
 import { verifyHandshake } from "./verifyHandshake";
 import type { BlockRequest, Piece } from "../types/peerTypes";
 import { Peer } from "./peer";
-import { BITFIELD_BUF } from "./bitfield";
 import type { TorrentEvents } from "../torrent";
 import type { Recon } from "../Emitter/Recon";
 import { parseClient } from "./clientName";
@@ -18,6 +17,8 @@ export type PeerAddress = {
 export class PeerManager {
   private connectingPeers: Set<string> = new Set<string>();
   private badPeers = new Set<string>();
+  private supportedPeers: number = 0;
+  private dhtPeers = 0;
   constructor(
     private activePeers: Set<Peer>,
     private infoHash: Buffer,
@@ -25,7 +26,7 @@ export class PeerManager {
     private pieceHandler: (piece: Piece, peer: Peer) => Promise<void>,
     private getBlock: (reqBlock: BlockRequest) => Promise<Buffer | undefined>,
     private getVerifiedPieces: () => {
-      verifiedPieces: ReadonlySet<number>;
+      verifiedPiecesBitfield: Readonly<Uint8Array>;
       totalPieces: number;
     },
   ) {
@@ -55,6 +56,13 @@ export class PeerManager {
     this.recon.listen("PEER:BAN", (peer) => {
       this.badPeers.add(normalizeAddr(peer.ip) ?? peer.ip);
     });
+
+    // setInterval(() => {
+    //   console.log(
+    //     `Total friendly peers who support extensions: ${this.supportedPeers}`,
+    //   );
+    //   console.log(`Total friendly peers who support dht: ${this.dhtPeers}`);
+    // }, 10 * 1000);
   }
 
   startListening(port: number) {
@@ -92,7 +100,8 @@ export class PeerManager {
         socket.off("data", onHandshake);
         socket.write(ourHandshake); // reply with our own handshake
 
-        const { verifiedPieces, totalPieces } = this.getVerifiedPieces();
+        const { verifiedPiecesBitfield, totalPieces } =
+          this.getVerifiedPieces();
 
         const peer = new Peer(
           socket,
@@ -108,10 +117,7 @@ export class PeerManager {
         this.activePeers.add(peer);
         this.recon.announce("PEER:CONNECT", peer);
 
-        peer.startAfterHandshake(
-          buf,
-          BITFIELD_BUF(verifiedPieces, totalPieces),
-        );
+        peer.startAfterHandshake(buf, verifiedPiecesBitfield as Buffer);
       };
 
       socket.on("data", onHandshake);
@@ -155,10 +161,8 @@ export class PeerManager {
       const message = buf.subarray(0, 68);
       buf = buf.subarray(68);
 
-      const { isSuccessful, remotePeerId } = verifyHandshake(
-        torrentHandshake,
-        message,
-      );
+      const { isSuccessful, remotePeerId, supportsExtensions, supportsDHT } =
+        verifyHandshake(torrentHandshake, message);
 
       if (!isSuccessful) {
         this.connectingPeers.delete(peerKey);
@@ -170,9 +174,12 @@ export class PeerManager {
 
       socket.off("data", onHandshake);
 
-      const { verifiedPieces, totalPieces } = this.getVerifiedPieces();
+      const { verifiedPiecesBitfield, totalPieces } = this.getVerifiedPieces();
 
       const peer = new Peer(socket, this.recon, this.pieceHandler, totalPieces);
+
+      if (supportsExtensions) this.supportedPeers++;
+      if (supportsDHT) this.dhtPeers++;
 
       peer.clientName = parseClient(remotePeerId);
 
@@ -185,7 +192,7 @@ export class PeerManager {
       //   BITFIELD_BUF(verifiedPieces, totalPieces),
       // );
 
-      peer.startAfterHandshake(buf, BITFIELD_BUF(verifiedPieces, totalPieces));
+      peer.startAfterHandshake(buf, verifiedPiecesBitfield as Buffer);
     };
 
     socket.on("connect", () => {

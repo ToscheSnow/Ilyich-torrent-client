@@ -6,13 +6,13 @@ import type {
   PendingRequest,
   Piece,
 } from "../types/peerTypes";
-import { addPiecesFromBitfield } from "./bitfield";
 import { Socket } from "net";
 import { decodeIncomingPeerMessage } from "./parseEventFromMessage";
 import type { Recon } from "../Emitter/Recon";
 import type { TorrentEvents } from "../torrent";
 import { normalizeAddr } from "./normaliseAddr";
 import { RateMeter } from "../utils/RateMeter";
+import { addPiece, countPieces, hasPiece } from "../Pieces/bitfield";
 
 const MAX_JUNK_BYTES = 5 * 1024 * 1024;
 
@@ -24,7 +24,8 @@ export class Peer {
   private readonly maxBufferLength: number;
 
   private buf: Buffer = Buffer.alloc(0);
-  private availablePieces: Set<number> = new Set<number>();
+  private availablePieces: Uint8Array;
+  private totalPieceAvailable = 0;
   private disconnected = false;
 
   private readonly pendingRequests = new Map<string, PendingRequest>();
@@ -43,6 +44,7 @@ export class Peer {
     private pieceHandler: (piece: Piece, peer: Peer) => Promise<void>,
     private totalPieces: number,
   ) {
+    this.availablePieces = new Uint8Array((totalPieces + 7) >> 3);
     this.maxBufferLength = Math.max(
       16 * 1024 + 9,
       Math.ceil(this.totalPieces / 8) + 1,
@@ -123,23 +125,26 @@ export class Peer {
         return;
 
       case "HAVE":
-        this.availablePieces.add(event.pieceId);
+        if (!hasPiece(this.availablePieces, event.pieceId))
+          this.totalPieceAvailable++;
+        addPiece(this.availablePieces, event.pieceId);
+
         this.recon.announce("PEER:HAVE", this);
 
-        if (this.availablePieces.size === this.totalPieces) {
+        if (this.totalPieceAvailable === this.totalPieces) {
           this.recon.announce("SEEDER:CONNECT", this);
         }
         return;
 
       case "BITFIELD":
-        addPiecesFromBitfield(event.field, this.availablePieces);
-
+        this.availablePieces = event.field;
+        this.totalPieceAvailable = countPieces(event.field);
         // console.log("🏖️ received a bitfield", event.field);
         this.Interested_REQ();
 
-        this.recon.announce("PEER:BITFIELD", this);
+        this.recon.announce("PEER:BITFIELD");
 
-        if (this.availablePieces.size === this.totalPieces) {
+        if (this.totalPieceAvailable === this.totalPieces) {
           this.recon.announce("SEEDER:CONNECT", this);
         }
         return;
@@ -160,12 +165,6 @@ export class Peer {
         );
         return;
 
-      case "CANCEL":
-        // Remove matching request from upload tracking
-
-        // not implemented and not important
-        return;
-
       case "PIECE": {
         const pieceKey = `${event.piece.pieceIdx},${event.piece.offset}`;
         const pendingReq = this.pendingRequests.get(pieceKey);
@@ -182,11 +181,18 @@ export class Peer {
         await this.pieceHandler(event.piece, this);
         return;
       }
+
+      case "CANCEL":
+        // Remove matching request from upload tracking
+        console.log("😈 Received a cancel request");
+
+        // not implemented and not important
+        return;
+
       case "PORT":
         return;
 
       case "EXTENDED":
-        console.log("Ignore extended req 😂");
         return;
 
       default:
@@ -260,9 +266,7 @@ export class Peer {
       try {
         await this.processEvent(decodeIncomingPeerMessage(message));
       } catch (e) {
-        console.warn("bad message, dropping peer", e);
-        this.disconnect();
-        break;
+        if (e instanceof Error) console.log(`Error :${e.message}`);
       }
     }
   }
@@ -271,7 +275,7 @@ export class Peer {
     return this.state.peerChoking;
   }
 
-  public get pieces(): ReadonlySet<number> {
+  public get pieces(): Readonly<Uint8Array> {
     return this.availablePieces;
   }
 
@@ -386,6 +390,14 @@ export class Peer {
 
   public get addr() {
     return `${this.remoteAddress},${this.port}`;
+  }
+
+  public *availablePieceIndices(): Generator<number> {
+    for (let idx = 0; idx < this.totalPieces; idx++) {
+      if (hasPiece(this.availablePieces, idx)) {
+        yield idx;
+      }
+    }
   }
 
   /************************************************************************ */

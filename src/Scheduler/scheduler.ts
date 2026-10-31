@@ -6,6 +6,7 @@ import type { TorrentEvents } from "../torrent";
 import type { BlockRequest } from "../types/peerTypes";
 import type { SchedulerEvent } from "../types/schedulerTypes";
 import { BLOCK_SIZE } from "../client";
+import { hasPiece } from "../Pieces/bitfield";
 
 const MIN_DEPTH = 20; // blocks in flight for a new or slow peer
 const MAX_DEPTH = 150;
@@ -35,7 +36,7 @@ export class Scheduler {
   private peerBlockRate = new Map<Peer, { blocks: number; perSec: number }>();
   private lastSweep = Date.now();
 
-  private verifiedPieces: ReadonlySet<number>;
+  private verifiedPieces: Uint8Array;
   private offHandlers: (() => void)[] = [];
   private offDone?: () => void;
   private sweepTimer: ReturnType<typeof setInterval>;
@@ -49,7 +50,8 @@ export class Scheduler {
     this.MAX_ACTIVE_PIECES = Math.ceil(
       (125 * 1024 * 1024) / (this.blocksPerPiece * BLOCK_SIZE),
     );
-    this.verifiedPieces = pieceManager.getVerifiedPieces().verifiedPieces;
+    this.verifiedPieces =
+      pieceManager.getVerifiedPieces().verifiedPiecesBitfield;
     this.initReconHandlers();
     this.startEventLoop();
     this.sweepTimer = setInterval(() => this.sweep(), SWEEP_MS);
@@ -229,7 +231,7 @@ export class Scheduler {
         this.pendingPieceToBlocks.delete(idx);
         continue;
       }
-      if (!peer.pieces.has(idx)) continue;
+      if (!hasPiece(peer.pieces, idx)) continue;
 
       for (let i = offs.length - 1; i >= 0; i--) {
         const offset = offs[i]!;
@@ -251,8 +253,9 @@ export class Scheduler {
 
     // 2) start a brand new piece this peer has (skipping the ones cooling down)
     const now = Date.now();
-    for (const idx of peer.pieces) {
-      if (this.piecesInSlot.has(idx) || this.verifiedPieces.has(idx)) continue;
+    for (const idx of peer.availablePieceIndices()) {
+      if (this.piecesInSlot.has(idx) || hasPiece(this.verifiedPieces, idx))
+        continue;
       if ((this.cooldown.get(idx) ?? 0) > now) continue;
 
       const offsets = this.pieceManager.allOffsets(idx);
@@ -309,7 +312,7 @@ export class Scheduler {
   /** put a block back in the pool, but only if it's still wanted */
   private requeue(pieceIdx: number, offset: number) {
     if (!this.piecesInSlot.has(pieceIdx)) return; // parked or done: don't resurrect it
-    if (this.verifiedPieces.has(pieceIdx)) return;
+    if (hasPiece(this.verifiedPieces, pieceIdx)) return;
     if (this.pieceManager.hasBlock(pieceIdx, offset)) return;
 
     let offs = this.pendingPieceToBlocks.get(pieceIdx);

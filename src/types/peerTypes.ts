@@ -35,7 +35,7 @@ export type PeerEvent =
   | { type: "REQUEST"; block: BlockRequest }
   | { type: "PIECE"; piece: Piece }
   | { type: "CANCEL"; block: BlockRequest }
-  | { type: "PORT" }
+  | { type: "PORT"; port: number }
   | { type: "EXTENDED"; extendedMessageId: number };
 
 export interface PieceInfo {

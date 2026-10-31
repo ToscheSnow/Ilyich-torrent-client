@@ -81,6 +81,7 @@ export function decodeIncomingPeerMessage(message: Buffer): PeerEvent {
       };
 
     //no idea what port does 🥺
+    //after a long time i have reached this frontier to do dht 😈
     case PEER_MESSAGE_ID.PORT:
       if (message.length !== 3) {
         throw new Error("Invalid PORT message");
@@ -88,9 +89,11 @@ export function decodeIncomingPeerMessage(message: Buffer): PeerEvent {
 
       return {
         type: "PORT",
+        port: message.readUInt16BE(1),
       };
 
     case PEER_MESSAGE_ID.EXTENDED:
+      if (message.length < 2) throw new Error("Invalid Exntension message");
       return {
         type: "EXTENDED",
         extendedMessageId: message.readUInt8(1),
