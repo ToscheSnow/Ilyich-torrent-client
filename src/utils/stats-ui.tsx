@@ -55,27 +55,29 @@ function App({ stats }: { stats: Stats }) {
   return (
     <Box flexDirection="column" borderStyle="round" padding={1}>
       <Box flexDirection="column">
-        <Text color="greenBright">
-          Progress: {stats.piecesCompletedCount} pieces ({pct}%) —{" "}
+        <Text color="whiteBright">
+          Progress {stats.piecesCompletedCount} pieces completed ({pct}%) —{" "}
           {formatBytes(stats.validatedBytes)} total
         </Text>
-        <Text color="green">
-          Uploaded {formatBytes(stats.bytesUploaded)} total
-        </Text>
+        <Text color="whiteBright">ETA: {formatEta(stats.etaSeconds)}</Text>
+        
         <Box flexDirection="column">
           <Text color="whiteBright">Speed: {formatMbps(stats.speed)}</Text>
-          <Text color="whiteBright">
+          <Text color="green">
             Downloaded (Not written to Disk){" "}
             {formatBytes(stats.bytesInProgress)}
           </Text>
-          <Text color="whiteBright">ETA: {formatEta(stats.etaSeconds)}</Text>
         </Box>
+
+        <Text color="green">
+          Uploaded {formatBytes(stats.bytesUploaded)} total
+        </Text>
       </Box>
 
       <Box flexDirection="column" marginTop={1}>
         <Text color="whiteBright">Peers: {stats.peersConnectedCount}</Text>
-        <Text color="whiteBright">Choked Peers: {stats.peersChoked}</Text>
-        <Text color="whiteBright">Seeders: {stats.seedPeers}</Text>
+        <Text color="red">Choked Peers: {stats.peersChoked}</Text>
+        <Text color="greenBright">Seeders: {stats.seedPeers}</Text>
       </Box>
 
       <Box marginTop={1}>
@@ -83,10 +85,10 @@ function App({ stats }: { stats: Stats }) {
       </Box>
 
       <Box flexDirection="column" marginTop={1}>
-        <Text color="yellowBright">
+        <Text color="black">
           RSS: {formatBytes(memory.rss)} | Heap: {formatBytes(memory.heapUsed)}
         </Text>
-        <Text color="yellowBright">
+        <Text color="grey">
           External: {formatBytes(memory.external)} | ArrayBuffers:{" "}
           {formatBytes(memory.arrayBuffers)}
         </Text>

@@ -250,7 +250,7 @@ export class PieceManager {
       );
 
       if (!ok) {
-        this.clearPieceBlocks(pieceIdx);
+        // this.clearPieceBlocks(pieceIdx);
         return;
       }
 

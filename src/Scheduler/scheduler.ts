@@ -9,12 +9,12 @@ import { BLOCK_SIZE } from "../client";
 import { hasPiece } from "../Pieces/bitfield";
 
 const MIN_DEPTH = 20; // blocks in flight for a new or slow peer
-const MAX_DEPTH = 150;
-const TARGET_QUEUE_SECS = 4; // keep ~4s of data queued per peer
+const MAX_DEPTH = 250;
+const TARGET_QUEUE_SECS = 1; // keep ~4s of data queued per peer
 const STALE_REQ_MS = 10_000; // an individual request older than this is re-queued
 const STALL_MS = 5_000; // a started piece with no new block for this long is "stalled"
-const PARK_MS = 15_000; // how long a parked piece sits out
-const MAX_PARKED = 24; // parked pieces keep partial blocks in RAM, so bound them
+const PARK_MS = 10_000; // how long a parked piece sits out
+const MAX_PARKED = 15; // parked pieces keep partial blocks in RAM, so bound them
 const SWEEP_MS = 2_000;
 
 export class Scheduler {
@@ -231,6 +231,7 @@ export class Scheduler {
         this.pendingPieceToBlocks.delete(idx);
         continue;
       }
+
       if (!hasPiece(peer.pieces, idx)) continue;
 
       for (let i = offs.length - 1; i >= 0; i--) {

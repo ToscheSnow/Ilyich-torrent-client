@@ -9,7 +9,12 @@ export type TransferStats = {
 };
 
 export class Stats {
+  //peer stats
   private peers = new Set<Peer>();
+  private seeders = new Set<Peer>();
+  private chokedPeers = new Set<Peer>();
+
+  //download stats
   private piecesCompleted = 0;
   private bytesDownloadedThisSession = 0;
   private totalBytesHave = 0;
@@ -17,8 +22,6 @@ export class Stats {
   private lastSpeedCheckBytes = 0;
   private emaSpeed = 0;
   private uploadedBytes = 0;
-  private chokedPeers = new Set<Peer>();
-  private seeders = new Set<Peer>();
 
   constructor(
     private readonly totalPieces: number,
@@ -140,7 +143,7 @@ export class Stats {
     return {
       downloaded: this.bytesDownloadedThisSession,
       uploaded: this.uploadedBytes,
-      left: Math.max(0, this.totalBytes - this.totalBytes),
+      left: Math.max(0, this.totalBytes - this.verifiedBytes),
     };
   };
 }

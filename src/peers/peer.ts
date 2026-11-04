@@ -226,7 +226,6 @@ export class Peer {
   private Interested_REQ(): void {
     const buf = Buffer.from([0x00, 0x00, 0x00, 0x01, 0x02]);
 
-    this.state.amInterested = true;
     this.reqQueue.push(buf);
   }
 
@@ -407,9 +406,7 @@ export class Peer {
 function createDefaultPeerState(): PeerState {
   return {
     amChoking: true,
-    amInterested: false,
     peerChoking: true,
     peerInterested: false,
-    maxInFlight: 10,
   };
 }

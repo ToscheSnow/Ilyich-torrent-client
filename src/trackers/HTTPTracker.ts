@@ -61,9 +61,7 @@ export class HttpTracker {
     };
 
     this.announceTimer = setInterval(async () => {
-      console.log("🎯 Sent HTTP Tracker Req");
       await Promise.allSettled(this.urls.map((url) => fetchSingleReq(url)));
-      console.log(`😨 Failed HTTP Tracker count: ${this.failedTrackers.size}`);
     }, 120 * 1000);
 
     await Promise.allSettled(this.urls.map((url) => fetchSingleReq(url)));

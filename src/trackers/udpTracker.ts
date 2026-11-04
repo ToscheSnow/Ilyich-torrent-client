@@ -109,7 +109,6 @@ export class UdpTracker {
     for (const [_, timer] of this.retries) {
       timer.close();
     }
-    this.timer.close();
     this.retries.clear();
     this.pendingRequests.clear();
     this.trackerStates.clear();
@@ -254,6 +253,7 @@ export class UdpTracker {
 
         //collect peers and addAddresses
         const peers = parsePeerAddress(event.peers);
+
         this.onResponse(peers);
         return;
       }
@@ -525,9 +525,7 @@ export class UdpTracker {
 
     this.timer = setInterval(
       async () => {
-        console.log("😋 Sent UDP Tracker request");
         await Promise.allSettled(this.urls.map((url) => requestTracker(url)));
-        console.log(`😨 Failed UDP Tracker count: ${this.failedTrackers.size}`);
       },
       1 * 60 * 1000,
     );

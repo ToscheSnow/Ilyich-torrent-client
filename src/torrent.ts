@@ -130,6 +130,7 @@ export class Torrent {
 
   // this function starts the execution of download
   public async start(listenPort = 6881) {
+    startStatsUI(this.stats);
     const downloadStartTime = performance.now();
     console.log(`\nStarted torrent at ${new Date().toLocaleTimeString()}\n`);
 
@@ -158,8 +159,6 @@ export class Torrent {
 
     //allow incoming peer connections (can also be skipped)
     this.peerManager.startListening(listenPort);
-
-    startStatsUI(this.stats);
 
     // start tracker requests (these take place periodically)
     this.HTTPTracker.announce();

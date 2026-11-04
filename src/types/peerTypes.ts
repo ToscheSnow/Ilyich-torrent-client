@@ -1,13 +1,11 @@
 export interface PeerState {
-  // i can send
+  // i can not send
   amChoking: boolean;
   // i want something
-  amInterested: boolean;
   // i can not receive
   peerChoking: boolean;
   // they want something
   peerInterested: boolean;
-  maxInFlight: number;
 }
 
 export interface BlockRequest {
